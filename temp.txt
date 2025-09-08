@@ -31,30 +31,12 @@ public partial class MainWindow : Window
     private string _apiKey = string.Empty;
     private string _sessionId = string.Empty;
     private QuestionExtractor? _questionExtractor;
-    private bool _asrOn;
-    private string _partialLine = string.Empty;
     
 
     public MainWindow()
     {
         InitializeComponent();
         _levelTimer.Tick += (_, __) => UpdateLevelUi();
-    }
-
-    private void AppendLog(string message)
-    {
-        try
-        {
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (FindName("DebugLogBox") is TextBox tb)
-                {
-                    tb.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
-                    tb.ScrollToEnd();
-                }
-            });
-        }
-        catch { }
     }
 
     // Excluir de capturas si es posible (Windows 10 2004+)
@@ -98,11 +80,6 @@ public partial class MainWindow : Window
         if (FindName("ApiUrlBox") is TextBox apiUrlBox) apiUrlBox.Text = _apiUrl;
         if (FindName("ApiKeyBox") is TextBox apiKeyBox) apiKeyBox.Text = _apiKey;
         if (FindName("SessionIdBox") is TextBox sessionBox) sessionBox.Text = _sessionId;
-
-        // Initialize info panels
-        if (FindName("LastQuestionText") is TextBlock lqt) lqt.Text = "No questions asked yet.";
-        if (FindName("LiveTranscriptBox") is TextBlock ltb) ltb.Text = "Waiting for audio...";
-        AppendLog("UI loaded");
     }
 
     private void Window_MouseDown(object sender, MouseButtonEventArgs e)
@@ -172,8 +149,10 @@ public partial class MainWindow : Window
         }
 
         // Si cloud ASR está activo, reiniciar con el nuevo idioma
-        if (_asrOn)
+        if (FindName("SystemTranscribeToggle") is ToggleButton cloud && cloud.IsChecked == true)
+        {
             _ = RestartCloudTranscriberWithCurrentLanguageAsync();
+        }
     }
 
     private void AudioMonitorToggle_Click(object sender, RoutedEventArgs e)
@@ -201,7 +180,6 @@ public partial class MainWindow : Window
             _loopback.RecordingStopped += (_, __) => { _loopback?.Dispose(); _loopback = null; };
             _loopback.StartRecording();
             _levelTimer.Start();
-            AppendLog("System audio monitor started");
 
             // Preparar buffer para streaming cloud (se crea una vez)
             _loopbackBuffer = new BufferedWaveProvider(_loopback.WaveFormat)
@@ -214,7 +192,6 @@ public partial class MainWindow : Window
         {
             MessageBox.Show("No se pudo iniciar el monitor de audio: " + ex.Message, "Audio", MessageBoxButton.OK, MessageBoxImage.Warning);
             if (FindName("AudioMonitorToggle") is ToggleButton tb) tb.IsChecked = false;
-            AppendLog("Error starting system audio: " + ex.Message);
         }
     }
 
@@ -226,7 +203,6 @@ public partial class MainWindow : Window
         _loopback = null;
         _level = 0;
         UpdateLevelUi();
-        AppendLog("System audio monitor stopped");
     }
 
     private void LoopbackOnDataAvailable(object? sender, WaveInEventArgs e)
@@ -433,7 +409,7 @@ public partial class MainWindow : Window
                 }
 
                 _cloudTranscriber = new AzureSpeechTranscriber(key, region);
-                _cloudTranscriber.PartialTranscription += text => { _partialLine = text ?? string.Empty; Dispatcher.Invoke(UpdateTranscriptUi); };
+                _cloudTranscriber.PartialTranscription += text => { /* opcional: mostrar parciales */ };
                 _cloudTranscriber.FinalTranscription += async text =>
                 {
                     Dispatcher.Invoke(() =>
@@ -441,8 +417,6 @@ public partial class MainWindow : Window
                         if (!string.IsNullOrWhiteSpace(text))
                         {
                             _transcript.AppendLine(text);
-                            _partialLine = string.Empty;
-                            UpdateTranscriptUi();
                         }
                     });
                     try
@@ -461,16 +435,9 @@ public partial class MainWindow : Window
                         }
                     }
                     catch { }
-                    var prev = text ?? string.Empty;
-                    if (prev.Length > 120) prev = prev.Substring(0, 120) + "...";
-                    AppendLog("Final transcript: " + prev);
-                    Dispatcher.Invoke(UpdateTranscriptUi);
                 };
 
                 await _cloudTranscriber.StartAsync(new BufferedToProvider(_loopbackBuffer), GetSelectedLanguageCode(), default);
-                _asrOn = true;
-                try { if (FindName("LiveTranscriptBox") is TextBlock ltbStart) ltbStart.Text = "Listening..."; } catch { }
-                AppendLog("Cloud ASR started");
             }
             catch (Exception ex)
             {
@@ -482,9 +449,6 @@ public partial class MainWindow : Window
         {
             try { await _cloudTranscriber?.StopAsync()!; } catch { }
             _cloudTranscriber = null;
-            _asrOn = false;
-            try { if (FindName("LiveTranscriptBox") is TextBlock ltbStop) ltbStop.Text = "Waiting for audio..."; } catch { }
-            AppendLog("Cloud ASR stopped");
         }
     }
 
@@ -492,16 +456,7 @@ public partial class MainWindow : Window
     {
         _transcript.Clear();
         _lastQuestion = string.Empty;
-        _partialLine = string.Empty;
         try { this.Title = "Overlay"; } catch { }
-        // Update panels
-        try
-        {
-            if (FindName("LiveTranscriptBox") is TextBlock ltb) ltb.Text = _asrOn ? "Listening..." : "Waiting for audio...";
-            if (FindName("LastQuestionText") is TextBlock lqt) lqt.Text = "No questions asked yet.";
-        }
-        catch { }
-        AppendLog("Transcript cleared");
     }
 
     private void ApiUrlBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -585,85 +540,6 @@ public partial class MainWindow : Window
             await _cloudTranscriber.StartAsync(new BufferedToProvider(_loopbackBuffer), GetSelectedLanguageCode());
         }
         catch { }
-    }
-
-    private async void StartStop_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (!_asrOn)
-            {
-                if (_loopback == null)
-                {
-                    StartAudioMonitor();
-                }
-                if (_loopbackBuffer == null && _loopback != null)
-                {
-                    _loopbackBuffer = new BufferedWaveProvider(_loopback.WaveFormat)
-                    {
-                        DiscardOnBufferOverflow = true,
-                        BufferDuration = TimeSpan.FromSeconds(5)
-                    };
-                    _loopback.DataAvailable += (s, ev) => { try { _loopbackBuffer?.AddSamples(ev.Buffer, 0, ev.BytesRecorded); } catch { } };
-                }
-
-                var key = Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY") ?? string.Empty;
-                var region = Environment.GetEnvironmentVariable("AZURE_SPEECH_REGION") ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(region))
-                {
-                    MessageBox.Show("Configura AZURE_SPEECH_KEY/AZURE_SPEECH_REGION en variables de entorno.", "Cloud", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                _cloudTranscriber = new AzureSpeechTranscriber(key, region);
-                _cloudTranscriber.PartialTranscription += text => { _partialLine = text ?? string.Empty; Dispatcher.Invoke(UpdateTranscriptUi); };
-                _cloudTranscriber.FinalTranscription += async text =>
-                {
-                    Dispatcher.Invoke(() => { if (!string.IsNullOrWhiteSpace(text)) { _transcript.AppendLine(text); _partialLine = string.Empty; UpdateTranscriptUi(); } });
-                    try
-                    {
-                        var keyOpenAi = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-                        if (!string.IsNullOrWhiteSpace(keyOpenAi))
-                        {
-                            _questionExtractor ??= new QuestionExtractor(keyOpenAi!);
-                            var (isQ, q) = await _questionExtractor.ExtractAsync(text);
-                            if (isQ && !string.IsNullOrWhiteSpace(q))
-                            {
-                                _lastQuestion = q;
-                                Dispatcher.Invoke(() => this.Title = $"Overlay — Q: {q}");
-                            }
-                        }
-                    }
-                    catch { }
-                    Dispatcher.Invoke(UpdateTranscriptUi);
-                };
-
-                await _cloudTranscriber.StartAsync(new BufferedToProvider(_loopbackBuffer!), GetSelectedLanguageCode());
-                _asrOn = true;
-                AppendLog("Cloud ASR started (Start button)");
-                if (FindName("BtnStart") is Button btnStart)
-                {
-                    if (btnStart.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
-                        tb.Text = "Stop";
-                }
-            }
-            else
-            {
-                try { await _cloudTranscriber?.StopAsync()!; } catch { }
-                _cloudTranscriber = null;
-                _asrOn = false;
-                AppendLog("Cloud ASR stopped (Start button)");
-                if (FindName("BtnStart") is Button btnStart)
-                {
-                    if (btnStart.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
-                        tb.Text = "Start";
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show("Error al iniciar/detener transcripción: " + ex.Message, "Start", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
     }
 
     private static Button? FindButtonByLabel(string label)
@@ -778,33 +654,4 @@ public partial class MainWindow : Window
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
-    
-    private void UpdateTranscriptUi()
-    {
-        try
-        {
-            var baseText = _transcript.ToString();
-            var full = string.IsNullOrWhiteSpace(_partialLine)
-                ? baseText
-                : (baseText.Length > 0 ? baseText + "\n" + _partialLine : _partialLine);
-            if (string.IsNullOrWhiteSpace(full))
-                full = _asrOn ? "Listening..." : "Waiting for audio...";
-            if (FindName("LiveTranscriptBox") is TextBlock ltb) ltb.Text = full.Trim();
-            if (!string.IsNullOrWhiteSpace(_lastQuestion))
-            {
-                if (FindName("LastQuestionText") is TextBlock lqt) lqt.Text = _lastQuestion;
-            }
-        }
-        catch { }
-    }
-
-    private void CopyQuestion_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var q = string.IsNullOrWhiteSpace(_lastQuestion) ? (FindName("LastQuestionText") as TextBlock)?.Text ?? string.Empty : _lastQuestion;
-            if (!string.IsNullOrWhiteSpace(q)) Clipboard.SetText(q);
-        }
-        catch { }
-    }
 }

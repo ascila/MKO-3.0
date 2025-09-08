@@ -16,6 +16,10 @@ obj/
 # VS Code
 .vscode/
 
+# Local env files (never commit secrets)
+.env
+.env.*
+
 # Logs / misc
 *.log
 *.cache

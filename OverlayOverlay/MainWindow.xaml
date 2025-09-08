@@ -6,9 +6,13 @@
         AllowsTransparency="True" Background="#AA000000"
         Topmost="True" ShowInTaskbar="True" WindowStartupLocation="CenterScreen"
         Loaded="Window_Loaded" MouseDown="Window_MouseDown" LocationChanged="Window_LocationChanged">
+  <Window.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+  </Window.Resources>
   <Border CornerRadius="10" Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" Padding="10">
     <Grid>
       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="Auto"/>
@@ -43,13 +47,15 @@
           <Button x:Name="SettingsButton" Width="36" Height="36" Margin="8,0,0,0" Click="SettingsButton_Click" ToolTip="Settings">
             <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
           </Button>
-          <Button Content="✕" Width="36" Height="36" Margin="6,0,0,0" Click="Close_Click"/>
+          <Button Width="36" Height="36" Margin="6,0,0,0" Click="Close_Click" ToolTip="Close">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8BB;" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+          </Button>
         </StackPanel>
       </Grid>
 
       <!-- Fila 2: Start + idiomas + Clear + Project Mode -->
       <UniformGrid Grid.Row="1" Rows="1" Columns="5" Margin="0,8,0,0" VerticalAlignment="Center">
-        <Button Height="33" Padding="14,8">
+        <Button x:Name="BtnStart" Height="33" Padding="14,8" Click="StartStop_Click">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE768;" Margin="0,0,6,0"/>
             <TextBlock Text="Start"/>
@@ -61,7 +67,7 @@
             <TextBlock Text="Clear Transcript"/>
           </StackPanel>
         </Button>
-        <!-- Project Mode como botón normal, separación simétrica por estilo base -->
+        <!-- Project Mode como botÃ³n normal, separaciÃ³n simÃ©trica por estilo base -->
         <Button x:Name="BtnProjectMode" Height="33">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7B8;" Margin="0,0,6,0"/>
@@ -89,7 +95,56 @@
         </Button>
       </WrapPanel>
 
-      <!-- Menú de configuración -->
+      <!-- Fila 4: Panels for Last Question and Live Transcription -->
+      <StackPanel Grid.Row="3" Margin="0,8,0,0">
+        <!-- Interview Q&A Panel -->
+        <Border Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
+          <StackPanel>
+            <DockPanel>
+              <StackPanel Orientation="Vertical" DockPanel.Dock="Left">
+                <TextBlock Text="Interview Q&amp;A" FontWeight="Bold"/>
+                <TextBlock Text="AI-extracted question from the transcript." Opacity="0.8" FontSize="12"/>
+              </StackPanel>
+              <Button x:Name="BtnCopyQuestion" DockPanel.Dock="Right" Width="32" Height="28" ToolTip="Copy last question" Click="CopyQuestion_Click">
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8C8;" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Button>
+            </DockPanel>
+            <Border Background="#1212120F" CornerRadius="6" Padding="8" Margin="0,6,0,0">
+              <TextBlock x:Name="LastQuestionText" Text="No questions asked yet." TextWrapping="Wrap"/>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- Live Transcription Panel -->
+        <Border Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10">
+          <StackPanel>
+            <TextBlock Text="Live Transcription" FontWeight="Bold"/>
+            <TextBlock Text="Your real-time interview transcription." Opacity="0.8" FontSize="12"/>
+            <Border Background="#1212120F" CornerRadius="6" Padding="8" Margin="0,6,0,0">
+              <ScrollViewer Height="140" VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="LiveTranscriptBox" Text="Waiting for audio..." TextWrapping="Wrap"/>
+              </ScrollViewer>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- Debug Log Panel (toggleable) -->
+        <Border Background="{DynamicResource BgBrush}"
+                BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,8,0,0"
+                Visibility="{Binding IsChecked, ElementName=DebugToggle, Converter={StaticResource BoolToVis}}">
+          <StackPanel>
+            <TextBlock Text="Debug Logs" FontWeight="Bold"/>
+            <TextBlock Text="Development logs for troubleshooting." Opacity="0.8" FontSize="12"/>
+            <Border Background="#1212120F" CornerRadius="6" Padding="8" Margin="0,6,0,0">
+              <ScrollViewer Height="140" VerticalScrollBarVisibility="Auto">
+                <TextBox x:Name="DebugLogBox" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" FontFamily="Consolas" MinHeight="120"/>
+              </ScrollViewer>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <!-- MenÃº de configuraciÃ³n -->
       <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" Opened="SettingsPopup_Opened">
         <Border Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="8" >
           <StackPanel>
@@ -104,6 +159,8 @@
             <Separator Margin="0,6,0,6"/>
             <TextBlock Text="Microphone" Margin="2,0,2,4"/>
             <ComboBox x:Name="MicDeviceCombo" Width="220" SelectionChanged="MicDeviceCombo_SelectionChanged"/>
+            <Separator Margin="0,6,0,6"/>
+            <CheckBox x:Name="DebugToggle" Content="Show Debug Panel" IsChecked="True"/>
           </StackPanel>
         </Border>
       </Popup>
