@@ -30,6 +30,8 @@ public class AzureSpeechTranscriber : IDisposable
     {
         if (_recognizer != null) return;
 
+        Console.WriteLine($"Iniciando transcripción en '{(string.IsNullOrWhiteSpace(language) ? "en-US" : language)}'...");
+
         var config = SpeechConfig.FromSubscription(_key, _region);
         config.SpeechRecognitionLanguage = string.IsNullOrWhiteSpace(language) ? "en-US" : language;
 
@@ -42,12 +44,18 @@ public class AzureSpeechTranscriber : IDisposable
         _recognizer.Recognizing += (_, e) =>
         {
             if (!string.IsNullOrEmpty(e.Result?.Text))
+            {
+                Console.WriteLine($"Parcial: {e.Result.Text}");
                 PartialTranscription?.Invoke(e.Result.Text);
+            }
         };
         _recognizer.Recognized += (_, e) =>
         {
             if (e.Result.Reason == ResultReason.RecognizedSpeech && !string.IsNullOrEmpty(e.Result.Text))
+            {
+                Console.WriteLine($"Final: {e.Result.Text}");
                 FinalTranscription?.Invoke(e.Result.Text);
+            }
         };
 
         await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
