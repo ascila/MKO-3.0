@@ -1,0 +1,112 @@
+<Window x:Class="OverlayOverlay.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Overlay" Width="620" SizeToContent="Height"
+        WindowStyle="None" ResizeMode="CanResizeWithGrip"
+        AllowsTransparency="True" Background="#AA000000"
+        Topmost="True" ShowInTaskbar="True" WindowStartupLocation="CenterScreen"
+        Loaded="Window_Loaded" MouseDown="Window_MouseDown" LocationChanged="Window_LocationChanged">
+  <Border CornerRadius="10" Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" Padding="10">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <!-- Fila 1: Barra superior con asa + audio + settings/close -->
+      <Grid Grid.Row="0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="14"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Grid Grid.Column="0" Cursor="SizeAll" MouseDown="Window_MouseDown"/>
+        <!-- Audio + idioma (ES/EN) -->
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+          <ToggleButton x:Name="AudioMonitorToggle" ToolTip="System audio" Style="{StaticResource MonitorToggleStyle}" Click="AudioMonitorToggle_Click">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7F8;" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+          </ToggleButton>
+          <Border x:Name="SysLevelBar" Width="48" Height="8" Margin="6,0,10,0" Background="#202020" CornerRadius="4">
+            <Border x:Name="SysFill" Width="0" Height="8" Background="#10B981" CornerRadius="4"/>
+          </Border>
+          <ToggleButton x:Name="MicMonitorToggle" ToolTip="Microphone" Style="{StaticResource MonitorToggleStyle}" Click="MicMonitorToggle_Click">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE720;" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+          </ToggleButton>
+          <Border x:Name="MicLevelBar" Width="48" Height="8" Margin="6,0,0,0" Background="#202020" CornerRadius="4">
+            <Border x:Name="MicFill" Width="0" Height="8" Background="#10B981" CornerRadius="4"/>
+          </Border>
+          <!-- (Idioma movido a segunda fila) -->
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button x:Name="SettingsButton" Width="36" Height="36" Margin="8,0,0,0" Click="SettingsButton_Click" ToolTip="Settings">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+          </Button>
+          <Button Content="✕" Width="36" Height="36" Margin="6,0,0,0" Click="Close_Click"/>
+        </StackPanel>
+      </Grid>
+
+      <!-- Fila 2: Start + idiomas + Clear + Project Mode -->
+      <UniformGrid Grid.Row="1" Rows="1" Columns="5" Margin="0,8,0,0" VerticalAlignment="Center">
+        <Button Height="33" Padding="14,8">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE768;" Margin="0,0,6,0"/>
+            <TextBlock Text="Start"/>
+          </StackPanel>
+        </Button>
+        <Button Height="33" Padding="14,8">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74D;" Margin="0,0,6,0"/>
+            <TextBlock Text="Clear Transcript"/>
+          </StackPanel>
+        </Button>
+        <!-- Project Mode como botón normal, separación simétrica por estilo base -->
+        <Button x:Name="BtnProjectMode" Height="33">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7B8;" Margin="0,0,6,0"/>
+            <TextBlock Text="Project Mode"/>
+          </StackPanel>
+        </Button>
+        <!-- Idioma: EN primero, luego ES -->
+        <ToggleButton x:Name="LangEN" Content="EN" Style="{StaticResource LangToggleStyle}" Click="LangToggle_Click" Height="33"/>
+        <ToggleButton x:Name="LangES" Content="ES" Style="{StaticResource LangToggleStyle}" Click="LangToggle_Click" Height="33"/>
+      </UniformGrid>
+
+      <!-- Fila 3: acciones principales -->
+      <WrapPanel Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center" HorizontalAlignment="Center">
+        <Button x:Name="BtnCapture" MinWidth="190" Height="33" Style="{StaticResource PrimaryButtonStyle}">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7C0;" Margin="0,0,8,0"/>
+            <TextBlock Text="Capture"/>
+          </StackPanel>
+        </Button>
+        <Button x:Name="BtnAnalyze" MinWidth="210" Height="33" Style="{StaticResource PrimaryButtonStyle}">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE721;" Margin="0,0,8,0"/>
+            <TextBlock Text="Analyze Screen"/>
+          </StackPanel>
+        </Button>
+      </WrapPanel>
+
+      <!-- Menú de configuración -->
+      <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" Opened="SettingsPopup_Opened">
+        <Border Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="8" >
+          <StackPanel>
+            <TextBlock Text="Opacity" Margin="2,0,2,4"/>
+            <Slider x:Name="OpacitySlider" Minimum="0.2" Maximum="1.0" Value="0.9" Width="220" ValueChanged="OpacitySlider_ValueChanged"/>
+            <Separator Margin="0,6,0,6"/>
+            <TextBlock Text="Theme" Margin="2,0,2,4"/>
+            <StackPanel Orientation="Horizontal">
+              <RadioButton x:Name="ThemeLight" Content="Light" GroupName="Theme" Margin="0,0,8,0" Checked="ThemeRadio_Checked"/>
+              <RadioButton x:Name="ThemeDark" Content="Dark" GroupName="Theme" Checked="ThemeRadio_Checked"/>
+            </StackPanel>
+            <Separator Margin="0,6,0,6"/>
+            <TextBlock Text="Microphone" Margin="2,0,2,4"/>
+            <ComboBox x:Name="MicDeviceCombo" Width="220" SelectionChanged="MicDeviceCombo_SelectionChanged"/>
+          </StackPanel>
+        </Border>
+      </Popup>
+    </Grid>
+  </Border>
+</Window>

@@ -1,0 +1,35 @@
+# Build artifacts
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+
+# Rider / ReSharper
+.idea/
+*.DotSettings.user
+
+# VS Code
+.vscode/
+
+# Logs / misc
+*.log
+*.cache
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# NuGet
+*.nupkg
+packages/
+
+# Azure Speech SDK runtime caches (if any)
+OverlayOverlay/obj/
+OverlayOverlay/bin/
+
+# Windows reserved device file accidentally present
+CON
