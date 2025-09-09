@@ -472,22 +472,7 @@ public partial class MainWindow : Window
                             UpdateTranscriptUi();
                         }
                     });
-                    try
-                    {
-                        var keyOpenAi = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-                        if (!string.IsNullOrWhiteSpace(keyOpenAi))
-                        {
-                            _questionExtractor ??= new QuestionExtractor(keyOpenAi!);
-                            var (isQ, q) = await _questionExtractor.ExtractAsync(text);
-                            if (isQ && !string.IsNullOrWhiteSpace(q))
-                            {
-                                _lastQuestion = q;
-                                // Opcional: mostrar de forma simple en el título para validar
-                                Dispatcher.Invoke(() => this.Title = $"Overlay — Q: {q}");
-                            }
-                        }
-                    }
-                    catch { }
+                    try { } catch { }
                     var prev = text ?? string.Empty;
                     if (prev.Length > 120) prev = prev.Substring(0, 120) + "...";
                     AppendLog("Final transcript: " + prev);
@@ -596,21 +581,7 @@ public partial class MainWindow : Window
             _cloudTranscriber.FinalTranscription += async text =>
             {
                 Dispatcher.Invoke(() => { if (!string.IsNullOrWhiteSpace(text)) _transcript.AppendLine(text); });
-                try
-                {
-                    var keyOpenAi = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-                    if (!string.IsNullOrWhiteSpace(keyOpenAi))
-                    {
-                        _questionExtractor ??= new QuestionExtractor(keyOpenAi!);
-                        var (isQ, q) = await _questionExtractor.ExtractAsync(text);
-                        if (isQ && !string.IsNullOrWhiteSpace(q))
-                        {
-                            _lastQuestion = q;
-                            Dispatcher.Invoke(() => this.Title = $"Overlay — Q: {q}");
-                        }
-                    }
-                }
-                catch { }
+                try { } catch { }
             };
 
             await _cloudTranscriber.StartAsync(new BufferedToProvider(_loopbackBuffer), GetSelectedLanguageCode());
@@ -652,21 +623,7 @@ public partial class MainWindow : Window
                 _cloudTranscriber.FinalTranscription += async text =>
                 {
                     Dispatcher.Invoke(() => { if (!string.IsNullOrWhiteSpace(text)) { _transcript.AppendLine(text); _partialLine = string.Empty; UpdateTranscriptUi(); } });
-                    try
-                    {
-                        var keyOpenAi = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-                        if (!string.IsNullOrWhiteSpace(keyOpenAi))
-                        {
-                            _questionExtractor ??= new QuestionExtractor(keyOpenAi!);
-                            var (isQ, q) = await _questionExtractor.ExtractAsync(text);
-                            if (isQ && !string.IsNullOrWhiteSpace(q))
-                            {
-                                _lastQuestion = q;
-                                Dispatcher.Invoke(() => this.Title = $"Overlay — Q: {q}");
-                            }
-                        }
-                    }
-                    catch { }
+                    try { } catch { }
                     Dispatcher.Invoke(UpdateTranscriptUi);
                 };
 
@@ -939,6 +896,7 @@ public partial class MainWindow : Window
         }
     }
 }
+
 
 
 
