@@ -722,18 +722,18 @@ public partial class MainWindow : Window
             // Mostrar progreso mientras se extrae y envía
             try
             {
-                if (FindName("BtnCapture") is Button capBtn)
+                var capRef = FindName("BtnCapture") as Button;
+                if (capRef != null)
                 {
-                    capBtn.IsEnabled = false;
-                    capBtn.Background = new SolidColorBrush(Color.FromRgb(59, 130, 246));
-                    if (capBtn.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
+                    capRef.IsEnabled = false;
+                    if (capRef.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
                         tb.Text = "Capturing...";
                 }
                 if (FindName("CaptureFill") is Border fill)
                 {
                     fill.Visibility = Visibility.Visible;
                     fill.Width = 0;
-                    var target = capBtn.ActualWidth > 0 ? capBtn.ActualWidth : 190;
+                    var target = (capRef != null && capRef.ActualWidth > 0) ? capRef.ActualWidth : 190;
                     var anim = new System.Windows.Media.Animation.DoubleAnimation(0, target, new Duration(TimeSpan.FromSeconds(1.2)))
                     {
                         RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
