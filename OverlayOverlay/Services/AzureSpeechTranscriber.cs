@@ -172,25 +172,12 @@ public class AzureSpeechTranscriber : IDisposable
         pushStream.Close();
     }
 
-    private void OnPartialDebounceElapsed(object? sender, System.Timers.ElapsedEventArgs e)
-    {
-        try
-        {
-            var text = _lastPartial?.Trim();
-            if (!string.IsNullOrWhiteSpace(text) && !string.Equals(text, _lastFinalEmitted, StringComparison.Ordinal))
-            {
-                _lastFinalEmitted = text;
-                DebugLog?.Invoke($"ClientFinalized after {PartialDebounceMs}ms inactivity");
-                FinalTranscription?.Invoke(text);
-            }
-        }
-        catch { }
-    }
+    // (debounce removed in revert)
 
     public async Task StopAsync()
     {
         try { _cts?.Cancel(); } catch { }
-        try { if (_partialDebounce != null) { _partialDebounce.Stop(); _partialDebounce.Dispose(); _partialDebounce = null; } } catch { }
+        
         if (_recognizer != null)
         {
             try { await _recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false); } catch { }
@@ -206,8 +193,7 @@ public class AzureSpeechTranscriber : IDisposable
     {
         try { _cts?.Cancel(); } catch { }
         _cts?.Dispose();
-        try { _partialDebounce?.Stop(); } catch { }
-        _partialDebounce?.Dispose();
+        
         _recognizer?.Dispose();
         _audioConfig?.Dispose();
     }
