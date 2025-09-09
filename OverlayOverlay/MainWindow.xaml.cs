@@ -214,7 +214,7 @@ public partial class MainWindow : Window
             _loopbackBuffer = new BufferedWaveProvider(_loopback.WaveFormat)
             {
                 DiscardOnBufferOverflow = true,
-                BufferDuration = TimeSpan.FromSeconds(5)
+                BufferDuration = TimeSpan.FromSeconds(1)
             };
         }
         catch (Exception ex)
@@ -436,7 +436,7 @@ public partial class MainWindow : Window
                     _loopback = new WasapiLoopbackCapture();
                     _loopback.DataAvailable += (s, ev) => { try { _loopbackBuffer?.AddSamples(ev.Buffer, 0, ev.BytesRecorded); } catch { } };
                     _loopback.RecordingStopped += (_, __) => { _loopback?.Dispose(); _loopback = null; };
-                    _loopbackBuffer = new BufferedWaveProvider(_loopback.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromSeconds(5) };
+                    _loopbackBuffer = new BufferedWaveProvider(_loopback.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromSeconds(1) };
                     _loopback.StartRecording();
                 }
 
@@ -567,7 +567,7 @@ public partial class MainWindow : Window
             if (_loopbackBuffer == null)
             {
                 _loopback ??= new WasapiLoopbackCapture();
-                _loopbackBuffer = new BufferedWaveProvider(_loopback.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromSeconds(5) };
+                _loopbackBuffer = new BufferedWaveProvider(_loopback.WaveFormat) { DiscardOnBufferOverflow = true, BufferDuration = TimeSpan.FromSeconds(1) };
                 _loopback.DataAvailable += (s, ev) => { try { _loopbackBuffer?.AddSamples(ev.Buffer, 0, ev.BytesRecorded); } catch { } };
                 try { _loopback.StartRecording(); } catch { }
             }
@@ -615,7 +615,7 @@ public partial class MainWindow : Window
                     _loopbackBuffer = new BufferedWaveProvider(_loopback.WaveFormat)
                     {
                         DiscardOnBufferOverflow = true,
-                        BufferDuration = TimeSpan.FromSeconds(5)
+                        BufferDuration = TimeSpan.FromSeconds(1)
                     };
                     _loopback.DataAvailable += (s, ev) => { try { _loopbackBuffer?.AddSamples(ev.Buffer, 0, ev.BytesRecorded); } catch { } };
                 }
@@ -920,3 +920,4 @@ public partial class MainWindow : Window
         }
     }
 }
+

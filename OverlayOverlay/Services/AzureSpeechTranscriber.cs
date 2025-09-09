@@ -40,10 +40,12 @@ public class AzureSpeechTranscriber : IDisposable
 
         // Azure Speech config (standard transcription)
         var sconfig = SpeechConfig.FromSubscription(_key, _region);
-        sconfig.SpeechRecognitionLanguage = "en-US"; // placeholder; actual source auto-detect below
+        sconfig.SpeechRecognitionLanguage = "en-US"; // overridden below by 'recogLang'
         // Optional: tweak silence timeouts for responsiveness
-        sconfig.SetProperty(PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "2000");
-        sconfig.SetProperty(PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "500");
+        sconfig.SetProperty(PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "1500");
+        sconfig.SetProperty(PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "250");
+        // Ask SDK to deliver partials as soon as possible
+        try { sconfig.SetProperty(PropertyId.SpeechServiceResponse_StablePartialResultThreshold, "1"); } catch { }
         try
         {
             var logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "azure-speech-sdk.log");
@@ -120,7 +122,7 @@ public class AzureSpeechTranscriber : IDisposable
         var resampled = new WdlResamplingSampleProvider(trimmed, 16000);
         var wave16 = new SampleToWaveProvider16(resampled);
 
-        var buffer = new byte[3200]; // 100ms @ 16kHz mono 16-bit = 3200 bytes
+        var buffer = new byte[640]; // ~20ms @ 16kHz mono 16-bit = 640 bytes
         var bytesThisSecond = 0;
         var lastTick = DateTime.UtcNow;
         const int bytesPerSecond = 16000 * 2; // PCM16 mono
