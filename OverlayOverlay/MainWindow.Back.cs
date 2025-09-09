@@ -7,6 +7,7 @@ using OverlayOverlay.Models;
 using System.Linq;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Interop;
 
 namespace OverlayOverlay;
 
@@ -39,6 +40,21 @@ public partial class MainWindow
 
             // Initial render of Q&A history
             RefreshQnAHistoryUi();
+
+            // Ensure overlay is capturable by default (user can re-enable hiding)
+            try { ApplyDisplayAffinity(false); } catch { }
+
+            // Wire capture-exclude toggle
+            try
+            {
+                if (FindName("ExcludeFromCaptureToggle") is CheckBox exToggle)
+                {
+                    exToggle.IsChecked = false;
+                    exToggle.Checked += ExcludeFromCaptureToggle_Changed;
+                    exToggle.Unchecked += ExcludeFromCaptureToggle_Changed;
+                }
+            }
+            catch { }
         }
         catch { }
     }
@@ -92,6 +108,27 @@ public partial class MainWindow
             // Fallback: log error
             try { AppendLog("Back to setup error: " + ex.Message); } catch { }
         }
+    }
+
+    private void ExcludeFromCaptureToggle_Changed(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            bool exclude = (FindName("ExcludeFromCaptureToggle") as CheckBox)?.IsChecked == true;
+            ApplyDisplayAffinity(exclude);
+        }
+        catch { }
+    }
+
+    private void ApplyDisplayAffinity(bool exclude)
+    {
+        try
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            uint mode = exclude ? 0x11u : 0u; // 0x11 = ExcludeFromCapture; 0 = WDA_NONE
+            SetWindowDisplayAffinity(hwnd, mode);
+        }
+        catch { }
     }
 
     private async Task SafeStopSessionAsync()
@@ -184,56 +221,59 @@ public partial class MainWindow
             {
                 var exp = new Expander
                 {
-                    Header = $"Q{idx}: {item.Question}",
                     IsExpanded = false,
-                    Margin = new Thickness(0, 4, 0, 0)
+                    Margin = new Thickness(0, 4, 0, 0),
+                    HorizontalAlignment = HorizontalAlignment.Stretch
                 };
-                var content = new StackPanel();
 
-                // If this is the first answered item, add Regenerate icon button
+                // Header: Question text (bold, larger) + Regenerate on the right for latest answered
+                // Use DockPanel with LastChildFill so the question fills and the button docks right
+                var headerDock = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Stretch };
                 if (!regenAdded && !string.IsNullOrWhiteSpace(item.Answer))
                 {
-                    var topBar = new DockPanel();
                     var regenBtn = new Button
                     {
                         Width = 28,
                         Height = 28,
-                        Margin = new Thickness(0, 0, 0, 6),
-                        ToolTip = "Regenerate answer"
+                        Margin = new Thickness(0),
+                        ToolTip = "Regenerate answer",
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        VerticalAlignment = VerticalAlignment.Center
                     };
                     regenBtn.Tag = item.Id;
-                    regenBtn.Click += Regenerate_Click;
+                    regenBtn.Click += RegenerateLatest_Click;
                     var icon = new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), Text = "\uE72C", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
                     regenBtn.Content = icon;
                     DockPanel.SetDock(regenBtn, Dock.Right);
-                    topBar.Children.Add(regenBtn);
-                    content.Children.Add(topBar);
+                    headerDock.Children.Add(regenBtn);
                     regenAdded = true;
                 }
-
-                // Question (bold + larger font)
-                var qText = new TextBlock
+                var questionHeader = new TextBlock
                 {
                     Text = item.Question,
                     TextWrapping = TextWrapping.Wrap,
                     FontWeight = FontWeights.Bold,
-                    FontSize = 15,
-                    Margin = new Thickness(0, 0, 0, 6)
+                    FontSize = 16
                 };
-                content.Children.Add(qText);
+                headerDock.Children.Add(questionHeader);
+                exp.Header = headerDock;
 
-                // Answer body
-                var ans = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = string.IsNullOrWhiteSpace(item.Answer) ? "(pending)" : item.Answer };
+                // Content: answer text and bottom actions
+                var content = new StackPanel();
+                var ans = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 14, Text = string.IsNullOrWhiteSpace(item.Answer) ? "(pending)" : item.Answer };
                 content.Children.Add(ans);
 
-                // Bottom actions: Copy Q+A
                 var bottomBar = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
-                var copyBtn = new Button { Width = 28, Height = 28, ToolTip = "Copy question and answer" };
+                // Copy button left with label
+                var copyBtn = new Button { Height = 28, Padding = new Thickness(8, 2, 8, 2), ToolTip = "Copy question and answer" };
                 copyBtn.Tag = item.Id;
                 copyBtn.Click += CopyQnA_Click;
-                var copyIcon = new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), Text = "\uE8C8", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-                copyBtn.Content = copyIcon;
-                DockPanel.SetDock(copyBtn, Dock.Right);
+                var copyStack = new StackPanel { Orientation = Orientation.Horizontal };
+                var copyIcon = new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), Text = "\uE8C8", Margin = new Thickness(0,0,6,0), VerticalAlignment = VerticalAlignment.Center };
+                copyStack.Children.Add(copyIcon);
+                copyStack.Children.Add(new TextBlock { Text = "Copy", VerticalAlignment = VerticalAlignment.Center });
+                copyBtn.Content = copyStack;
+                DockPanel.SetDock(copyBtn, Dock.Left);
                 bottomBar.Children.Add(copyBtn);
                 content.Children.Add(bottomBar);
                 exp.Content = content;
@@ -241,11 +281,11 @@ public partial class MainWindow
                 // Card container around each expander
                 var card = new Border
                 {
-                    Background = (Brush)new BrushConverter().ConvertFromString("#1212120F")!,
-                    BorderBrush = (Brush)new BrushConverter().ConvertFromString("#33000000")!,
+                    Background = (Brush)new BrushConverter().ConvertFromString("#F3F4F6")!,
+                    BorderBrush = (Brush)new BrushConverter().ConvertFromString("#E5E7EB")!,
                     BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(8),
-                    Padding = new Thickness(8),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(12),
                     Margin = new Thickness(0, 6, 0, 0),
                     Child = exp
                 };
@@ -296,7 +336,7 @@ public partial class MainWindow
         catch { }
     }
 
-    private async void Regenerate_Click(object sender, RoutedEventArgs e)
+    private async void RegenerateLatest_Click(object sender, RoutedEventArgs e)
     {
         try
         {
