@@ -10,6 +10,7 @@ using System.Windows.Threading;
 using System.Text;
 using OverlayOverlay.Services;
 using NAudio.Wave;
+using System.Windows.Media.Animation;
 
 namespace OverlayOverlay;
 
@@ -33,6 +34,7 @@ public partial class MainWindow : Window
     private QuestionExtractor? _questionExtractor;
     private bool _asrOn;
     private string _partialLine = string.Empty;
+    private Storyboard? _captureSb;
     
 
     public MainWindow()
@@ -105,8 +107,8 @@ public partial class MainWindow : Window
         // Idioma por defecto visible: EN activo
         try { if (FindName("LangEN") is ToggleButton en) en.IsChecked = true; } catch { }
         try { if (FindName("LangES") is ToggleButton es) es.IsChecked = false; } catch { }
-        // Estado inicial del botA3n Start
-        try { if (FindName("BtnStart") is Button bs) { bs.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68)); bs.Foreground = Brushes.White; } } catch { }
+        // Estado inicial del botón Start: verde (stopped)
+        try { if (FindName("BtnStart") is Button bs) { bs.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129)); bs.Foreground = Brushes.White; } } catch { }
         AppendLog("UI loaded");
     }
 
@@ -654,7 +656,7 @@ public partial class MainWindow : Window
                 {
                     if (btnStart.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
                         tb.Text = "Stop";
-                    btnStart.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+                    btnStart.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // red while running (Stop)
                     btnStart.Foreground = Brushes.White;
                 }
             }
@@ -668,7 +670,7 @@ public partial class MainWindow : Window
                 {
                     if (btnStart.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
                         tb.Text = "Start";
-                    btnStart.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+                    btnStart.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // green when ready to start
                     btnStart.Foreground = Brushes.White;
                 }
             }
@@ -727,7 +729,21 @@ public partial class MainWindow : Window
                     if (capBtn.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
                         tb.Text = "Capturing...";
                 }
-                if (FindName("CaptureProgress") is ProgressBar pb) pb.Visibility = Visibility.Visible;
+                if (FindName("CaptureFill") is Border fill)
+                {
+                    fill.Visibility = Visibility.Visible;
+                    fill.Width = 0;
+                    var target = capBtn.ActualWidth > 0 ? capBtn.ActualWidth : 190;
+                    var anim = new System.Windows.Media.Animation.DoubleAnimation(0, target, new Duration(TimeSpan.FromSeconds(1.2)))
+                    {
+                        RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+                    };
+                    _captureSb = new System.Windows.Media.Animation.Storyboard();
+                    System.Windows.Media.Animation.Storyboard.SetTarget(anim, fill);
+                    System.Windows.Media.Animation.Storyboard.SetTargetProperty(anim, new PropertyPath(Border.WidthProperty));
+                    _captureSb.Children.Add(anim);
+                    _captureSb.Begin();
+                }
             }
             catch { }
             var text = _transcript.ToString().Trim();
@@ -786,13 +802,13 @@ public partial class MainWindow : Window
         {
             try
             {
-                if (FindName("CaptureProgress") is ProgressBar pb1) pb1.Visibility = Visibility.Collapsed;
+                if (_captureSb != null) { _captureSb.Stop(); _captureSb = null; }
+                if (FindName("CaptureFill") is Border fill1) { fill1.Width = 0; fill1.Visibility = Visibility.Collapsed; }
                 if (FindName("BtnCapture") is Button capBtn1)
                 {
                     capBtn1.IsEnabled = true;
                     if (capBtn1.Content is StackPanel sp1 && sp1.Children.Count >= 2 && sp1.Children[1] is TextBlock tb1)
                         tb1.Text = "Capture";
-                    capBtn1.ClearValue(Button.BackgroundProperty);
                 }
             }
             catch { }
