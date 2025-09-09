@@ -544,22 +544,7 @@ public partial class MainWindow : Window
         catch { return "en-US"; }
     }
 
-    private void LangToggle_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (sender is not ToggleButton src) return;
-            bool en = src.Name == "LangEN";
-            if (FindName("LangEN") is ToggleButton bEn && FindName("LangES") is ToggleButton bEs)
-            {
-                if (en) { bEn.IsChecked = true; bEs.IsChecked = false; }
-                else { bEn.IsChecked = false; bEs.IsChecked = true; }
-            }
-            _ = RestartCloudTranscriberWithCurrentLanguageAsync();
-            AppendLog($"Language set to {(en ? "en-US" : "es-ES")}");
-        }
-        catch { }
-    }
+    
 
     private async System.Threading.Tasks.Task RestartCloudTranscriberWithCurrentLanguageAsync()
     {
