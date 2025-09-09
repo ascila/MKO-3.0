@@ -278,6 +278,24 @@ public partial class MainWindow
         catch { }
     }
 
+    private void CopyAllQuestions_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var list = QnAStore.GetHistory().ToList();
+            if (list.Count == 0) return;
+            var sb = new System.Text.StringBuilder();
+            int idx = 1;
+            foreach (var q in list)
+            {
+                sb.AppendLine($"Q{idx}: {q.Question}");
+                idx++;
+            }
+            Clipboard.SetText(sb.ToString().Trim());
+        }
+        catch { }
+    }
+
     private async void Regenerate_Click(object sender, RoutedEventArgs e)
     {
         try
