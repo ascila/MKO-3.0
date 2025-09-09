@@ -17,6 +17,9 @@ public class AzureSpeechTranscriber : IDisposable
     private PushAudioInputStream? _pushStream;
     private AudioConfig? _audioConfig;
     private CancellationTokenSource? _cts;
+    private DateTime? _speechStartUtc;
+    private DateTime? _speechEndUtc;
+    private bool _firstPartialReported;
 
     public event Action<string>? PartialTranscription;
     public event Action<string>? FinalTranscription;
@@ -70,7 +73,16 @@ public class AzureSpeechTranscriber : IDisposable
             if (e.Result.Reason == ResultReason.RecognizingSpeech)
             {
                 var text = e.Result.Text;
-                if (!string.IsNullOrWhiteSpace(text)) PartialTranscription?.Invoke(text);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    PartialTranscription?.Invoke(text);
+                    if (!_firstPartialReported && _speechStartUtc.HasValue)
+                    {
+                        var ms = (int)(DateTime.UtcNow - _speechStartUtc.Value).TotalMilliseconds;
+                        DebugLog?.Invoke($"First partial in ~{ms} ms");
+                        _firstPartialReported = true;
+                    }
+                }
                 DebugLog?.Invoke($"Recognizing: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'");
             }
             else
@@ -84,7 +96,12 @@ public class AzureSpeechTranscriber : IDisposable
             {
                 var text = e.Result.Text;
                 if (!string.IsNullOrWhiteSpace(text)) FinalTranscription?.Invoke(text);
-                DebugLog?.Invoke($"Recognized: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'");
+                var now = DateTime.UtcNow;
+                var fromStart = _speechStartUtc.HasValue ? (int)(now - _speechStartUtc.Value).TotalMilliseconds : (int?)null;
+                var fromEnd = _speechEndUtc.HasValue ? (int)(now - _speechEndUtc.Value).TotalMilliseconds : (int?)null;
+                DebugLog?.Invoke($"Recognized: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'" +
+                    (fromStart.HasValue ? $" | latency_start={fromStart}ms" : string.Empty) +
+                    (fromEnd.HasValue ? $" latency_end={fromEnd}ms" : string.Empty));
             }
             else if (e.Result.Reason == ResultReason.NoMatch)
             {
@@ -98,8 +115,8 @@ public class AzureSpeechTranscriber : IDisposable
         };
         _recognizer.SessionStarted += (_, __) => DebugLog?.Invoke("SessionStarted");
         _recognizer.SessionStopped += (_, __) => DebugLog?.Invoke("SessionStopped");
-        _recognizer.SpeechStartDetected += (_, __) => DebugLog?.Invoke("SpeechStartDetected");
-        _recognizer.SpeechEndDetected += (_, __) => DebugLog?.Invoke("SpeechEndDetected");
+        _recognizer.SpeechStartDetected += (_, __) => { _speechStartUtc = DateTime.UtcNow; _speechEndUtc = null; _firstPartialReported = false; DebugLog?.Invoke("SpeechStartDetected"); };
+        _recognizer.SpeechEndDetected += (_, __) => { _speechEndUtc = DateTime.UtcNow; DebugLog?.Invoke("SpeechEndDetected"); };
 
         await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
 
