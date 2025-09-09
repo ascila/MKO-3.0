@@ -1,0 +1,46 @@
+<Window x:Class="OverlayOverlay.SetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Setup" Width="720" Height="560" WindowStartupLocation="CenterOwner">
+  <DockPanel Margin="8">
+    <UniformGrid DockPanel.Dock="Bottom" Rows="1" Columns="3" Margin="0,8,0,0">
+      <Button Style="{StaticResource PrimaryButtonStyle}" x:Name="BtnBack" Height="33" Click="Back_Click">Back</Button>
+      <Button Style="{StaticResource PrimaryButtonStyle}" x:Name="BtnSave" Height="33" Click="Save_Click" IsEnabled="False" Visibility="Collapsed">Save</Button>
+      <Button Style="{StaticResource PrimaryButtonStyle}" x:Name="BtnNext" Height="33" Click="Next_Click" IsEnabled="False" Visibility="Collapsed">Next</Button>
+    </UniformGrid>
+    <TabControl>
+      <TabItem Header="CV">
+        <DockPanel>
+          <Button Style="{StaticResource PrimaryButtonStyle}" DockPanel.Dock="Top" Margin="0,0,0,6" HorizontalAlignment="Right" Width="90" Click="ClearCv_Click">Clear</Button>
+          <TextBox x:Name="CvBox" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+        </DockPanel>
+      </TabItem>
+      <TabItem Header="Job Description">
+        <DockPanel>
+          <Button Style="{StaticResource PrimaryButtonStyle}" DockPanel.Dock="Top" Margin="0,0,0,6" HorizontalAlignment="Right" Width="90" Click="ClearJd_Click">Clear</Button>
+          <TextBox x:Name="JdBox" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+        </DockPanel>
+      </TabItem>
+      <TabItem Header="Project Info">
+        <DockPanel>
+          <Button Style="{StaticResource PrimaryButtonStyle}" DockPanel.Dock="Top" Margin="0,0,0,6" HorizontalAlignment="Right" Width="90" Click="ClearProject_Click">Clear</Button>
+          <TextBox x:Name="ProjectBox" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+        </DockPanel>
+      </TabItem>
+      <TabItem Header="Personal Profile">
+        <DockPanel>
+          <Button Style="{StaticResource PrimaryButtonStyle}" DockPanel.Dock="Top" Margin="0,0,0,6" HorizontalAlignment="Right" Width="90" Click="ClearPersonal_Click">Clear</Button>
+          <TextBox x:Name="PersonalBox" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+        </DockPanel>
+      </TabItem>
+      <TabItem Header="Settings">
+        <StackPanel Margin="8">
+          <TextBlock Text="Google Doc ID"/>
+          <TextBox x:Name="DocIdBox" Margin="0,4,0,0"/>
+          <TextBlock Text="Autosave to AppData/OverlayOverlay/SetupContext.json" Margin="0,6,0,0" Opacity="0.7"/>
+        </StackPanel>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>
+

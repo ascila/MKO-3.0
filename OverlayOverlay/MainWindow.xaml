@@ -5,7 +5,8 @@
         WindowStyle="None" ResizeMode="CanResizeWithGrip"
         AllowsTransparency="True" Background="#AA000000"
         Topmost="True" ShowInTaskbar="True" WindowStartupLocation="CenterScreen"
-        Loaded="Window_Loaded" MouseDown="Window_MouseDown" LocationChanged="Window_LocationChanged">
+        Loaded="Window_Loaded" MouseDown="Window_MouseDown" LocationChanged="Window_LocationChanged"
+        MouseEnter="Window_MouseEnter" MouseLeave="Window_MouseLeave" MouseMove="Window_MouseMove">
   <Window.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVis"/>
   </Window.Resources>
@@ -44,6 +45,8 @@
         </StackPanel>
 
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button x:Name="BackButton" Height="36" MinWidth="100" Margin="0,0,6,0" Style="{StaticResource DangerButtonStyle}"
+                  Padding="16,8" Click="BackToSetup_Click" ToolTip="Back to Setup">Back</Button>
           <Button x:Name="SettingsButton" Width="36" Height="36" Margin="8,0,0,0" Click="SettingsButton_Click" ToolTip="Settings">
             <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
           </Button>
@@ -81,7 +84,7 @@
 
       <!-- Fila 3: acciones principales -->
       <WrapPanel Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" >
-        <Button x:Name="BtnCapture" MinWidth="190" Height="33" Style="{StaticResource PrimaryButtonStyle}">
+        <Button x:Name="BtnCapture" MinWidth="190" Height="33" Style="{StaticResource PrimaryButtonStyle}" Click="CaptureQuestion_Click">
           <Grid>
             <!-- Spinner shown during capture: single dotted ring -->
             <Grid x:Name="CaptureSpinner" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -108,10 +111,22 @@
             </StackPanel>
           </Grid>
         </Button>
-        <Button x:Name="BtnAnalyze" MinWidth="210" Height="33" Style="{StaticResource PrimaryButtonStyle}">
+        <Button x:Name="BtnAnalyze" MinWidth="210" Height="33" Style="{StaticResource PrimaryButtonStyle}" Click="Analyze_Click">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE721;" Margin="0,0,8,0"/>
             <TextBlock Text="Analyze Screen"/>
+          </StackPanel>
+        </Button>
+        <Button x:Name="BtnFollowUp" MinWidth="140" Height="33" Margin="8,0,0,0" Click="FollowUp_Click">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8FA;" Margin="0,0,8,0"/>
+            <TextBlock Text="Follow-up"/>
+          </StackPanel>
+        </Button>
+        <Button x:Name="BtnRegenerate" MinWidth="140" Height="33" Margin="8,0,0,0" Click="Regenerate_Click">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72C;" Margin="0,0,8,0"/>
+            <TextBlock Text="Regenerate"/>
           </StackPanel>
         </Button>
       </WrapPanel>
@@ -192,9 +207,17 @@
             <ComboBox x:Name="MicDeviceCombo" Width="220" SelectionChanged="MicDeviceCombo_SelectionChanged"/>
             <Separator Margin="0,6,0,6"/>
             <CheckBox x:Name="DebugToggle" Content="Show Debug Panel" IsChecked="True"/>
+            <Separator Margin="0,6,0,6"/>
+            <CheckBox x:Name="HideCursorToggle" Content="Hide cursor over overlay" IsChecked="True"/>
           </StackPanel>
         </Border>
       </Popup>
+
+      <!-- Local-only fake cursor (overlayed and excluded from capture) -->
+      <Canvas x:Name="CursorCanvas" IsHitTestVisible="False">
+        <Path x:Name="FakeCursor" Visibility="Collapsed" Fill="White" Stroke="#55000000" StrokeThickness="1"
+              Data="M 0,0 L 0,16 L 4,12 L 8,20 L 10,18 L 6,10 L 12,10 Z"/>
+      </Canvas>
 
     </Grid>
   </Border>

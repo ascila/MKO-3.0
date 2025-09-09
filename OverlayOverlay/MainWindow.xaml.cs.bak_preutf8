@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -97,7 +97,7 @@ public partial class MainWindow : Window
         if (FindName("ThemeLight") is RadioButton rb) rb.IsChecked = true;
         // Mantener pegado arriba
         this.Top = 0;
-        // Cargar lista de micrÃ³fonos
+        // Cargar lista de micrófonos
         RefreshMicDevices();
         if (FindName("MicDeviceCombo") is ComboBox micCb && micCb.Items.Count > 0)
         {
@@ -111,7 +111,7 @@ public partial class MainWindow : Window
         if (clearBtn != null)
             clearBtn.Click += ClearTranscript_Click;
 
-        // Cargar integraciÃ³n desde variables de entorno (con defaults)
+        // Cargar integración desde variables de entorno (con defaults)
         _apiUrl = Environment.GetEnvironmentVariable("OVERLAY_API_URL") ?? "http://localhost:9002/api/capture";
         _apiKey = Environment.GetEnvironmentVariable("OVERLAY_API_KEY") ?? "autoscribe-overlay-secret-key-12345";
         _sessionId = Environment.GetEnvironmentVariable("OVERLAY_SESSION_ID") ?? "local-dev-session";
@@ -125,7 +125,7 @@ public partial class MainWindow : Window
         // Idioma por defecto visible: EN activo
         try { if (FindName("LangEN") is ToggleButton en) en.IsChecked = true; } catch { }
         try { if (FindName("LangES") is ToggleButton es) es.IsChecked = false; } catch { }
-        // Estado inicial del botÃ³n Start: verde (stopped)
+        // Estado inicial del botón Start: verde (stopped)
         try { if (FindName("BtnStart") is Button bs) { bs.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129)); bs.Foreground = Brushes.White; } } catch { }
         AppendLog("UI loaded");
     }
@@ -142,57 +142,6 @@ public partial class MainWindow : Window
     {
         if (IsLoaded)
             this.Opacity = e.NewValue;
-    }
-
-    private void Window_MouseEnter(object sender, MouseEventArgs e)
-    {
-        try
-        {
-            if (FindName("HideCursorToggle") is CheckBox cb && cb.IsChecked == true)
-                Mouse.OverrideCursor = Cursors.None;
-        }
-        catch { }
-    }
-
-    private void Window_MouseLeave(object sender, MouseEventArgs e)
-    {
-        try { Mouse.OverrideCursor = null; } catch { }
-        try { if (FindName("FakeCursor") is System.Windows.Shapes.Path p) p.Visibility = Visibility.Collapsed; } catch { }
-    }
-
-    private void Window_MouseMove(object sender, MouseEventArgs e)
-    {
-        try
-        {
-            var hideLocal = false;
-            if (FindName("HideCursorToggle") is CheckBox cb && cb.IsChecked == true)
-                hideLocal = true;
-
-            if (!hideLocal)
-            {
-                // Ensure system cursor visible and fake one hidden
-                try { Mouse.OverrideCursor = null; } catch { }
-                if (FindName("FakeCursor") is System.Windows.Shapes.Path p1)
-                    p1.Visibility = Visibility.Collapsed;
-                return;
-            }
-
-            // Hide real cursor locally
-            Mouse.OverrideCursor = Cursors.None;
-
-            // Move/show fake cursor (drawn inside our window, thus excluded from capture)
-            var pos = e.GetPosition(this);
-            if (FindName("FakeCursor") is System.Windows.Shapes.Path p && FindName("CursorCanvas") is Canvas canvas)
-            {
-                // Slight offset so the tip aligns to pointer position
-                double left = pos.X + 2;
-                double top = pos.Y + 2;
-                Canvas.SetLeft(p, left);
-                Canvas.SetTop(p, top);
-                p.Visibility = Visibility.Visible;
-            }
-        }
-        catch { }
     }
 
     private void ThemeRadio_Checked(object sender, RoutedEventArgs e)
@@ -247,7 +196,7 @@ public partial class MainWindow : Window
                 if (FindName("LangES") is ToggleButton es) es.IsChecked = false;
         }
 
-        // Si cloud ASR estÃ¡ activo, reiniciar con el nuevo idioma
+        // Si cloud ASR está activo, reiniciar con el nuevo idioma
         if (_asrOn)
             _ = RestartCloudTranscriberWithCurrentLanguageAsync();
     }
@@ -319,7 +268,7 @@ public partial class MainWindow : Window
         var target = Math.Min(1.0, max * 0.8);
         _level = _level * 0.7 + target * 0.3; // suavizado
 
-        // alimentar buffer para transcripciÃ³n cloud
+        // alimentar buffer para transcripción cloud
         try { _loopbackBuffer?.AddSamples(e.Buffer, 0, e.BytesRecorded); } catch { }
     }
 
@@ -340,7 +289,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show("No se pudo iniciar el micrÃ³fono: " + ex.Message, "Mic", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("No se pudo iniciar el micrófono: " + ex.Message, "Mic", MessageBoxButton.OK, MessageBoxImage.Warning);
             if (FindName("MicMonitorToggle") is ToggleButton tb) tb.IsChecked = false;
         }
     }
@@ -444,7 +393,7 @@ public partial class MainWindow : Window
         }
     }
 
-    // Popup de settings tambiÃ©n fuera de captura
+    // Popup de settings también fuera de captura
     private void SettingsPopup_Opened(object sender, EventArgs e)
     {
         try
@@ -501,7 +450,7 @@ public partial class MainWindow : Window
 
                 if (_loopbackBuffer == null)
                 {
-                    // si el monitor no estÃ¡ activo, creamos un capturador efÃ­mero sÃ³lo para transcript
+                    // si el monitor no está activo, creamos un capturador efímero sólo para transcript
                     _loopback = new WasapiLoopbackCapture();
                     _loopback.DataAvailable += (s, ev) => { try { _loopbackBuffer?.AddSamples(ev.Buffer, 0, ev.BytesRecorded); } catch { } };
                     _loopback.RecordingStopped += (_, __) => { _loopback?.Dispose(); _loopback = null; };
@@ -538,7 +487,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                MessageBox.Show("No se pudo iniciar la transcripciÃ³n cloud: " + ex.Message, "Cloud", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("No se pudo iniciar la transcripción cloud: " + ex.Message, "Cloud", MessageBoxButton.OK, MessageBoxImage.Warning);
                 tb.IsChecked = false;
             }
         }
@@ -707,7 +656,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Error al iniciar/detener transcripciÃ³n: " + ex.Message, "Start", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show("Error al iniciar/detener transcripción: " + ex.Message, "Start", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -749,7 +698,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Mostrar progreso mientras se extrae y envÃ­a
+            // Mostrar progreso mientras se extrae y envía
             try
             {
                 var capRef = FindName("BtnCapture") as Button;
@@ -762,7 +711,7 @@ public partial class MainWindow : Window
                 // spinner animation handled via RotateTransform below
             }
             catch { }
-            // Mostrar spinner dentro del botÃ³n y ocultar etiqueta
+            // Mostrar spinner dentro del botón y ocultar etiqueta
             try
             {
                 if (FindName("CaptureLabel") is FrameworkElement label) label.Visibility = Visibility.Collapsed;
@@ -776,10 +725,10 @@ public partial class MainWindow : Window
             var text = _transcript.ToString().Trim();
             if (string.IsNullOrWhiteSpace(text))
             {
-                MessageBox.Show("No hay transcripciÃ³n suficiente todavÃ­a.", "Capturar", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("No hay transcripción suficiente todavía.", "Capturar", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            // Extraer pregunta localmente si hay clave de IA, si no, usa Ãºltima oraciÃ³n con '?'
+            // Extraer pregunta localmente si hay clave de IA, si no, usa última oración con '?'
             string q;
             var keyOpenAi = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
             if (!string.IsNullOrWhiteSpace(keyOpenAi))
@@ -799,10 +748,10 @@ public partial class MainWindow : Window
             {
                 _lastQuestion = q;
                 try { Clipboard.SetText(q); } catch { }
-                this.Title = $"Overlay â€” Q: {q}";
+                this.Title = $"Overlay — Q: {q}";
                 AppendLog("Capture: pregunta capturada");
 
-                // Enviar a la aplicaciÃ³n web
+                // Enviar a la aplicación web
                 try
                 {
                     var client = new AutoScribeClient(_apiUrl, _apiKey);
@@ -813,13 +762,13 @@ public partial class MainWindow : Window
                 }
                 catch (Exception ex2)
                 {
-                    AppendLog("Error enviando a la aplicación web");
-                    AppendLog("Error enviando a la aplicación web");
+                    AppendLog("Error enviando a la aplicaci�n web");
+                    AppendLog("Error enviando a la aplicaci�n web");
                 }
             }
             else
             {
-                AppendLog("Capture: no se detectó una pregunta clara");
+                AppendLog("Capture: no se detect� una pregunta clara");
             }
         }
         catch (Exception ex)
@@ -856,7 +805,7 @@ public partial class MainWindow : Window
     private static string FallbackExtractQuestion(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-        // Busca la Ãºltima oraciÃ³n con signo de interrogaciÃ³n
+        // Busca la última oración con signo de interrogación
         var parts = text.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
         for (int i = parts.Length - 1; i >= 0; i--)
         {

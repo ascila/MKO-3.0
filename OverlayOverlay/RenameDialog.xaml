@@ -1,0 +1,18 @@
+<Window x:Class="OverlayOverlay.RenameDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rename Session" Width="460" Height="190" WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize" WindowStyle="SingleBorderWindow" ShowInTaskbar="False">
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button x:Name="BtnCancel" Width="92" Height="32" Margin="6,0,0,0" Click="BtnCancel_Click">Cancel</Button>
+      <Button x:Name="BtnOk" Width="110" Height="32" Margin="6,0,0,0" Style="{StaticResource PrimaryButtonStyle}" Click="BtnOk_Click">Rename</Button>
+    </StackPanel>
+    <StackPanel>
+      <TextBlock Text="Enter a new session name:" Margin="0,0,0,6"/>
+      <TextBox x:Name="NameBox" Height="28"/>
+      <TextBlock x:Name="ErrText" Foreground="#EF4444" Margin="0,6,0,0" Visibility="Collapsed"/>
+    </StackPanel>
+  </DockPanel>
+</Window>
+

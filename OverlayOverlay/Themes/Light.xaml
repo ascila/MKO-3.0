@@ -4,9 +4,11 @@
   <Color x:Key="BgColor">#F8F9FB</Color>
   <Color x:Key="FgColor">#222222</Color>
   <Color x:Key="AccentColor">#3B82F6</Color>
+  <Color x:Key="SoftAccentColor">#6FA8FF</Color>
   <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}"/>
   <SolidColorBrush x:Key="FgBrush" Color="{StaticResource FgColor}"/>
   <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+  <SolidColorBrush x:Key="SoftAccentBrush" Color="{StaticResource SoftAccentColor}"/>
 
   <!-- Estilos básicos -->
   <Style TargetType="Window">
@@ -52,21 +54,49 @@
 
   <!-- Botón primario (para acciones principales) -->
   <Style x:Key="PrimaryButtonStyle" TargetType="{x:Type ButtonBase}" BasedOn="{StaticResource BaseButtonStyle}">
-    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+    <Setter Property="Background" Value="{StaticResource SoftAccentBrush}"/>
     <Setter Property="Foreground" Value="#FFFFFF"/>
     <Setter Property="Padding" Value="14,8"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="{x:Type ButtonBase}">
-          <Border x:Name="bd" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="#2B5CB8" BorderThickness="1">
+          <Border x:Name="bd" CornerRadius="6" Background="{TemplateBinding Background}" BorderBrush="#2B5CB8" BorderThickness="1">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <!-- No hover color change -->
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="bd" Property="Background" Value="#2F6EEA"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="bd" Property="Opacity" Value="0.6"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Botón de peligro/volver (rojo) -->
+  <Style x:Key="DangerButtonStyle" TargetType="{x:Type ButtonBase}" BasedOn="{StaticResource BaseButtonStyle}">
+    <Setter Property="Background" Value="#EF4444"/>
+    <Setter Property="Foreground" Value="#FFFFFF"/>
+    <Setter Property="BorderBrush" Value="#B91C1C"/>
+    <Setter Property="Padding" Value="12,6"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type ButtonBase}">
+          <Border x:Name="bd" CornerRadius="6" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="#4F8AFB"/>
+              <Setter TargetName="bd" Property="Background" Value="#DC2626"/>
+              <Setter TargetName="bd" Property="BorderBrush" Value="#991B1B"/>
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="#2F6EEA"/>
+              <Setter TargetName="bd" Property="Background" Value="#B91C1C"/>
+              <Setter TargetName="bd" Property="BorderBrush" Value="#7F1D1D"/>
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter TargetName="bd" Property="Opacity" Value="0.6"/>
