@@ -74,6 +74,16 @@ public partial class MainWindow
                 await SafeStopSessionAsync();
             }
 
+            // Clear all in-memory session UI/state before leaving
+            try { _autoExtractTimer.Stop(); } catch { }
+            try { QnAStore.Clear(); } catch { }
+            try { _transcript.Clear(); } catch { }
+            _partialLine = string.Empty;
+            _lastQuestion = string.Empty;
+            try { RefreshQnAHistoryUi(); } catch { }
+            try { if (FindName("LiveTranscriptBox") is TextBlock ltb) ltb.Text = "Waiting for audio..."; } catch { }
+            try { if (FindName("LastQuestionText") is TextBlock lqt) lqt.Text = "No questions asked yet."; } catch { }
+
             var setup = new SetupWindow();
             setup.Show();
             this.Close();

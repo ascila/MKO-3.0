@@ -35,4 +35,9 @@ public static class QnAStore
         if (predicate == null) return;
         _items.RemoveAll(predicate);
     }
+
+    public static void Clear()
+    {
+        _items.Clear();
+    }
 }

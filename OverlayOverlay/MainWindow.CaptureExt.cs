@@ -124,7 +124,7 @@ public partial class MainWindow
                     QuestionNumber = QnAStore.GetHistory().Count + 1
                 };
                 if (latestPending == null) QnAStore.Add(item);
-                _lastQuestion = question;
+                _lastQuestion = questionToAnswer;
                 Dispatcher.Invoke(UpdateTranscriptUi);
                 RefreshQnAHistoryUi();
 
@@ -134,7 +134,7 @@ public partial class MainWindow
                 // Generate answer (stubbed)
                 var input = new AnswerInput
                 {
-                    Question = question,
+                    Question = questionToAnswer,
                     Language = GetSelectedLanguageCode(),
                     Cv = ctx.Cv ?? string.Empty,
                     JobDescription = ctx.JobDescription ?? string.Empty,
