@@ -440,6 +440,7 @@ public partial class MainWindow : Window
                 }
 
                 _cloudTranscriber = new AzureSpeechTranscriber(key, region);
+                _cloudTranscriber.DebugLog += msg => AppendLog(msg);
                 _cloudTranscriber.PartialTranscription += text => { _partialLine = text ?? string.Empty; Dispatcher.Invoke(UpdateTranscriptUi); };
                 _cloudTranscriber.FinalTranscription += async text =>
                 {
@@ -571,6 +572,7 @@ public partial class MainWindow : Window
             }
 
             _cloudTranscriber = new AzureSpeechTranscriber(key, region);
+            _cloudTranscriber.DebugLog += msg => AppendLog(msg);
             _cloudTranscriber.PartialTranscription += text => { };
             _cloudTranscriber.FinalTranscription += async text =>
             {
@@ -626,6 +628,7 @@ public partial class MainWindow : Window
                 }
 
                 _cloudTranscriber = new AzureSpeechTranscriber(key, region);
+                _cloudTranscriber.DebugLog += msg => AppendLog(msg);
                 _cloudTranscriber.PartialTranscription += text => { _partialLine = text ?? string.Empty; Dispatcher.Invoke(UpdateTranscriptUi); };
                 _cloudTranscriber.FinalTranscription += async text =>
                 {

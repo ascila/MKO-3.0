@@ -20,6 +20,7 @@ public class AzureSpeechTranscriber : IDisposable
 
     public event Action<string>? PartialTranscription;
     public event Action<string>? FinalTranscription;
+    public event Action<string>? DebugLog;
 
     public AzureSpeechTranscriber(string key, string region)
     {
@@ -43,6 +44,13 @@ public class AzureSpeechTranscriber : IDisposable
         // Optional: tweak silence timeouts for responsiveness
         sconfig.SetProperty(PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "2000");
         sconfig.SetProperty(PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "500");
+        try
+        {
+            var logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "azure-speech-sdk.log");
+            sconfig.SetProperty(PropertyId.Speech_LogFilename, logPath);
+            DebugLog?.Invoke($"Azure SDK log: {logPath}");
+        }
+        catch { }
 
         // Auto-detect source between EN/ES (extendable)
         var autoDetect = AutoDetectSourceLanguageConfig.FromLanguages(new[] { "en-US", "es-ES" });
@@ -60,6 +68,7 @@ public class AzureSpeechTranscriber : IDisposable
             {
                 var text = e.Result.Text;
                 if (!string.IsNullOrWhiteSpace(text)) PartialTranscription?.Invoke(text);
+                DebugLog?.Invoke($"Recognizing: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'");
             }
         };
         _recognizer.Recognized += (_, e) =>
@@ -68,8 +77,17 @@ public class AzureSpeechTranscriber : IDisposable
             {
                 var text = e.Result.Text;
                 if (!string.IsNullOrWhiteSpace(text)) FinalTranscription?.Invoke(text);
+                DebugLog?.Invoke($"Recognized: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'");
             }
         };
+        _recognizer.Canceled += (_, e) =>
+        {
+            DebugLog?.Invoke($"Canceled: {e.Reason} {(string.IsNullOrWhiteSpace(e.ErrorDetails)?"":"- "+e.ErrorDetails)}");
+        };
+        _recognizer.SessionStarted += (_, __) => DebugLog?.Invoke("SessionStarted");
+        _recognizer.SessionStopped += (_, __) => DebugLog?.Invoke("SessionStopped");
+        _recognizer.SpeechStartDetected += (_, __) => DebugLog?.Invoke("SpeechStartDetected");
+        _recognizer.SpeechEndDetected += (_, __) => DebugLog?.Invoke("SpeechEndDetected");
 
         await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
 
@@ -77,7 +95,7 @@ public class AzureSpeechTranscriber : IDisposable
         _ = Task.Run(() => PumpAudioAsync(sourceProvider, _pushStream!, _cts.Token));
     }
 
-    private static async Task PumpAudioAsync(IWaveProvider sourceProvider, PushAudioInputStream pushStream, CancellationToken ct)
+    private async Task PumpAudioAsync(IWaveProvider sourceProvider, PushAudioInputStream pushStream, CancellationToken ct)
     {
         // Convertir sourceProvider a 16kHz mono 16-bit usando chain de SampleProviders
         var sourceWaveFormat = sourceProvider.WaveFormat;
@@ -90,16 +108,26 @@ public class AzureSpeechTranscriber : IDisposable
         var wave16 = new SampleToWaveProvider16(resampled);
 
         var buffer = new byte[3200]; // 100ms @ 16kHz mono 16-bit = 3200 bytes
+        var bytesThisSecond = 0;
+        var lastTick = DateTime.UtcNow;
         while (!ct.IsCancellationRequested)
         {
             int read = wave16.Read(buffer, 0, buffer.Length);
             if (read > 0)
             {
                 pushStream.Write(buffer, read);
+                bytesThisSecond += read;
             }
             else
             {
                 await Task.Delay(5, ct).ConfigureAwait(false);
+            }
+            var now = DateTime.UtcNow;
+            if ((now - lastTick).TotalSeconds >= 1.0)
+            {
+                DebugLog?.Invoke($"Audio pump: {bytesThisSecond} B/s to Azure");
+                bytesThisSecond = 0;
+                lastTick = now;
             }
         }
         pushStream.Close();
