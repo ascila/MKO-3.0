@@ -6,6 +6,7 @@ using OverlayOverlay.Services;
 using OverlayOverlay.Models;
 using System.Linq;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace OverlayOverlay;
 
@@ -164,11 +165,13 @@ public partial class MainWindow
         {
             if (FindName("QnAHistoryItems") is not StackPanel host) return;
             host.Children.Clear();
-            foreach (var item in QnAStore.GetHistory())
+            var list = QnAStore.GetHistory().ToList();
+            int idx = 1; // Start from Q1 at the top (newest first)
+            foreach (var item in list)
             {
                 var exp = new Expander
                 {
-                    Header = $"Q{(item.QuestionNumber > 0 ? item.QuestionNumber : 0)}: {item.Question}",
+                    Header = $"Q{idx}: {item.Question}",
                     IsExpanded = false,
                     Margin = new Thickness(0, 4, 0, 0)
                 };
@@ -176,7 +179,20 @@ public partial class MainWindow
                 var ans = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = string.IsNullOrWhiteSpace(item.Answer) ? "(pending)" : item.Answer };
                 content.Children.Add(ans);
                 exp.Content = content;
-                host.Children.Add(exp);
+
+                // Card container around each expander
+                var card = new Border
+                {
+                    Background = (Brush)new BrushConverter().ConvertFromString("#1212120F")!,
+                    BorderBrush = (Brush)new BrushConverter().ConvertFromString("#33000000")!,
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(8),
+                    Margin = new Thickness(0, 6, 0, 0),
+                    Child = exp
+                };
+                host.Children.Add(card);
+                idx++;
             }
         }
         catch { }

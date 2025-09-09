@@ -27,6 +27,22 @@ public partial class MainWindow
             if (string.IsNullOrWhiteSpace(transcript) || string.IsNullOrWhiteSpace(ctx.Cv) || string.IsNullOrWhiteSpace(ctx.JobDescription))
                 return;
 
+            // Per spec: when pressing Capture, clear unanswered questions and the transcript
+            try
+            {
+                QnAStore.RemoveWhere(q => !string.Equals(q.Status, "answered", StringComparison.OrdinalIgnoreCase));
+                RefreshQnAHistoryUi();
+            }
+            catch { }
+            try
+            {
+                _transcript.Clear();
+                _partialLine = string.Empty;
+                if (FindName("LiveTranscriptBox") is TextBlock ltb)
+                    ltb.Text = _asrOn ? "Listening..." : "Waiting for audio...";
+            }
+            catch { }
+
             // UI: disable and show spinner
             try
             {
@@ -58,7 +74,7 @@ public partial class MainWindow
             }
             catch { }
 
-            // Extract question (auto derives contextual keywords from Setup)
+            // Extract question from the captured transcript (auto-derives contextual keywords from Setup)
             string question = string.Empty;
             bool isQuestion = false;
             try
