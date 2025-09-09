@@ -792,7 +792,7 @@ public partial class MainWindow : Window
                 _lastQuestion = q;
                 try { Clipboard.SetText(q); } catch { }
                 this.Title = $"Overlay — Q: {q}";
-                ShowToast("Pregunta capturada", 2000);
+                AppendLog("Capture: pregunta capturada");
 
                 // Enviar a la aplicación web
                 try
@@ -805,18 +805,18 @@ public partial class MainWindow : Window
                 }
                 catch (Exception ex2)
                 {
-                    ShowToast("Error enviando a la aplicación web", 3000);
-                    AppendLog("Backend: error sending - " + ex2.Message);
+                    AppendLog("Error enviando a la aplicaci�n web");
+                    AppendLog("Error enviando a la aplicaci�n web");
                 }
             }
             else
             {
-                ShowToast("No se detectó una pregunta clara", 2000);
+                AppendLog("Capture: no se detect� una pregunta clara");
             }
         }
         catch (Exception ex)
         {
-            ShowToast("Error capturando pregunta", 3000);
+            AppendLog("Error capturando pregunta");
         }
         finally
         {
@@ -849,11 +849,11 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(text)) return string.Empty;
         // Busca la última oración con signo de interrogación
-        var parts = text.Split(new[] { '.', '!', '?', '¿' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = text.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
         for (int i = parts.Length - 1; i >= 0; i--)
         {
             var s = parts[i].Trim();
-            if (s.EndsWith("?", StringComparison.Ordinal) || s.StartsWith("¿"))
+            if (s.EndsWith("?", StringComparison.Ordinal))
                 return s.EndsWith("?") ? s : s + "?";
         }
         return string.Empty;
@@ -939,4 +939,6 @@ public partial class MainWindow : Window
         }
     }
 }
+
+
 
