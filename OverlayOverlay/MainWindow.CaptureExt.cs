@@ -101,29 +101,26 @@ public partial class MainWindow
 
             if (!string.IsNullOrWhiteSpace(questionToAnswer))
             {
-                // Dedupe: skip if same as most recent
-                var recent = QnAStore.GetHistory().FirstOrDefault();
-                if (recent != null && Normalize(recent.Question) == Normalize(questionToAnswer))
+                // Ensure we have a target pending item (reuse latestPending or create one)
+                var item = latestPending;
+                if (item == null)
                 {
-                    AppendLog("Duplicate question ignored (same as latest)");
+                    var id = DateTime.UtcNow.Ticks;
+                    item = new QnA
+                    {
+                        Id = id,
+                        Question = questionToAnswer,
+                        Status = "pending",
+                        Language = GetSelectedLanguageCode(),
+                        Source = "capture",
+                        Context = new QnAContext { ImageDataUrl = imageDataUrl, ClipboardText = clipboardText },
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
+                        QuestionNumber = QnAStore.GetHistory().Count + 1
+                    };
+                    QnAStore.Add(item);
                 }
-                else
-                {
-                // Add pending QnA
-                var id = DateTime.UtcNow.Ticks;
-                var item = latestPending ?? new QnA
-                {
-                    Id = id,
-                    Question = questionToAnswer,
-                    Status = "pending",
-                    Language = GetSelectedLanguageCode(),
-                    Source = "capture",
-                    Context = new QnAContext { ImageDataUrl = imageDataUrl, ClipboardText = clipboardText },
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    QuestionNumber = QnAStore.GetHistory().Count + 1
-                };
-                if (latestPending == null) QnAStore.Add(item);
+
                 _lastQuestion = questionToAnswer;
                 Dispatcher.Invoke(UpdateTranscriptUi);
                 RefreshQnAHistoryUi();
@@ -159,7 +156,6 @@ public partial class MainWindow
                 else
                 {
                     FlashCaptureButton(success: false);
-                }
                 }
             }
             else
