@@ -83,9 +83,25 @@
       <WrapPanel Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" >
         <Button x:Name="BtnCapture" MinWidth="190" Height="33" Style="{StaticResource PrimaryButtonStyle}">
           <Grid>
-            <!-- In-button indeterminate fill animation -->
-            <Border x:Name="CaptureFill" Background="#663B82F6" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="0" CornerRadius="4"/>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <!-- Green tint over original style while processing; faded out on complete -->
+            <Border x:Name="CaptureTint" Background="#FF10B981" Opacity="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+            <!-- Spinner shown during capture -->
+            <Grid x:Name="CaptureSpinner" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Viewbox Width="16" Height="16">
+                <Grid Width="16" Height="16">
+                  <!-- Wedge arc that rotates -->
+                  <Path x:Name="SpinnerArc" Fill="#FFFFFFFF" Data="M8,0 A8,8 0 0 1 16,8 L8,8 Z">
+                    <Path.RenderTransform>
+                      <RotateTransform x:Name="SpinnerRotate" Angle="0" CenterX="8" CenterY="8"/>
+                    </Path.RenderTransform>
+                  </Path>
+                </Grid>
+              </Viewbox>
+            </Grid>
+
+            <!-- Default label -->
+            <StackPanel x:Name="CaptureLabel" Orientation="Horizontal" VerticalAlignment="Center">
               <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7C0;" Margin="0,0,8,0"/>
               <TextBlock Text="Capture"/>
             </StackPanel>

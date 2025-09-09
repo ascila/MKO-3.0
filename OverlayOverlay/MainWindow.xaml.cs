@@ -746,6 +746,23 @@ public partial class MainWindow : Window
                 }
             }
             catch { }
+            // Mostrar spinner dentro del botón y ocultar etiqueta
+            try
+            {
+                if (FindName("CaptureLabel") is FrameworkElement label) label.Visibility = Visibility.Collapsed;
+                if (FindName("CaptureSpinner") is FrameworkElement spin) spin.Visibility = Visibility.Visible;
+                if (FindName("SpinnerRotate") is RotateTransform rt)
+                {
+                    var rot = new DoubleAnimation(0, 360, new Duration(TimeSpan.FromSeconds(0.8))) { RepeatBehavior = RepeatBehavior.Forever };
+                    rt.BeginAnimation(RotateTransform.AngleProperty, rot);
+                }
+                if (FindName("CaptureTint") is Border tint)
+                {
+                    tint.Opacity = 0.85;
+                    tint.Visibility = Visibility.Visible;
+                }
+            }
+            catch { }
             var text = _transcript.ToString().Trim();
             if (string.IsNullOrWhiteSpace(text))
             {
@@ -804,6 +821,21 @@ public partial class MainWindow : Window
             {
                 if (_captureSb != null) { _captureSb.Stop(); _captureSb = null; }
                 if (FindName("CaptureFill") is Border fill1) { fill1.Width = 0; fill1.Visibility = Visibility.Collapsed; }
+                // Detener spinner y restaurar etiqueta
+                try
+                {
+                    if (FindName("SpinnerRotate") is RotateTransform rtStop)
+                        rtStop.BeginAnimation(RotateTransform.AngleProperty, null);
+                    if (FindName("CaptureSpinner") is FrameworkElement spin) spin.Visibility = Visibility.Collapsed;
+                    if (FindName("CaptureLabel") is FrameworkElement label) label.Visibility = Visibility.Visible;
+                    if (FindName("CaptureTint") is Border tint1)
+                    {
+                        var fade = new DoubleAnimation(tint1.Opacity, 0, new Duration(TimeSpan.FromMilliseconds(350)));
+                        fade.Completed += (_, __) => { tint1.Visibility = Visibility.Collapsed; };
+                        tint1.BeginAnimation(Border.OpacityProperty, fade);
+                    }
+                }
+                catch { }
                 if (FindName("BtnCapture") is Button capBtn1)
                 {
                     capBtn1.IsEnabled = true;
