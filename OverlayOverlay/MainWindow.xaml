@@ -83,34 +83,20 @@
       <WrapPanel Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" >
         <Button x:Name="BtnCapture" MinWidth="190" Height="33" Style="{StaticResource PrimaryButtonStyle}">
           <Grid>
-            <!-- Spinner shown during capture: three concentric rotating arcs -->
+            <!-- Spinner shown during capture: single dotted ring -->
             <Grid x:Name="CaptureSpinner" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center">
-              <Viewbox Width="22" Height="22">
-                <Grid Width="22" Height="22">
-                  <!-- Outer ring -->
-                  <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                        StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeDashArray="10 34"
-                        Data="M11,1 A10,10 0 1 1 11.001,1">
-                    <Path.RenderTransform>
-                      <RotateTransform x:Name="SpinR1" Angle="0" CenterX="11" CenterY="11"/>
-                    </Path.RenderTransform>
-                  </Path>
-                  <!-- Middle ring -->
-                  <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                        StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeDashArray="8 26"
-                        Data="M11,4 A7,7 0 1 1 11.001,4">
-                    <Path.RenderTransform>
-                      <RotateTransform x:Name="SpinR2" Angle="0" CenterX="11" CenterY="11"/>
-                    </Path.RenderTransform>
-                  </Path>
-                  <!-- Inner ring -->
-                  <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                        StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeDashArray="6 18"
-                        Data="M11,7 A4,4 0 1 1 11.001,7">
-                    <Path.RenderTransform>
-                      <RotateTransform x:Name="SpinR3" Angle="0" CenterX="11" CenterY="11"/>
-                    </Path.RenderTransform>
-                  </Path>
+              <Viewbox Width="20" Height="20">
+                <Grid Width="20" Height="20">
+                  <Ellipse Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                           StrokeThickness="3"
+                           StrokeDashArray="1 2"
+                           StrokeDashCap="Round"
+                           Fill="Transparent"
+                           Width="18" Height="18">
+                    <Ellipse.RenderTransform>
+                      <RotateTransform x:Name="CaptureRotate" Angle="0" CenterX="9" CenterY="9"/>
+                    </Ellipse.RenderTransform>
+                  </Ellipse>
                 </Grid>
               </Viewbox>
             </Grid>

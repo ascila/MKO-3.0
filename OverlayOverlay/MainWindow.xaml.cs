@@ -737,13 +737,9 @@ public partial class MainWindow : Window
             {
                 if (FindName("CaptureLabel") is FrameworkElement label) label.Visibility = Visibility.Collapsed;
                 if (FindName("CaptureSpinner") is FrameworkElement spin) spin.Visibility = Visibility.Visible;
-                // Start three concentric ring rotations with different speeds
-                var rot1 = new DoubleAnimation(0, 360, new Duration(TimeSpan.FromSeconds(3))) { RepeatBehavior = RepeatBehavior.Forever };
-                var rot2 = new DoubleAnimation(0, 360, new Duration(TimeSpan.FromSeconds(2))) { RepeatBehavior = RepeatBehavior.Forever };
-                var rot3 = new DoubleAnimation(0, 360, new Duration(TimeSpan.FromSeconds(1))) { RepeatBehavior = RepeatBehavior.Forever };
-                if (FindName("SpinR1") is RotateTransform r1) r1.BeginAnimation(RotateTransform.AngleProperty, rot1);
-                if (FindName("SpinR2") is RotateTransform r2) r2.BeginAnimation(RotateTransform.AngleProperty, rot2);
-                if (FindName("SpinR3") is RotateTransform r3) r3.BeginAnimation(RotateTransform.AngleProperty, rot3);
+                // Start single dotted ring rotation (2s linear, infinite)
+                var rot = new DoubleAnimation(0, 360, new Duration(TimeSpan.FromSeconds(2))) { RepeatBehavior = RepeatBehavior.Forever };
+                if (FindName("CaptureRotate") is RotateTransform r) r.BeginAnimation(RotateTransform.AngleProperty, rot);
                 // no green tint per request
             }
             catch { }
@@ -808,10 +804,8 @@ public partial class MainWindow : Window
                 // Detener spinner y restaurar etiqueta
                 try
                 {
-                // Stop all ring rotations
-                if (FindName("SpinR1") is RotateTransform r1s) r1s.BeginAnimation(RotateTransform.AngleProperty, null);
-                if (FindName("SpinR2") is RotateTransform r2s) r2s.BeginAnimation(RotateTransform.AngleProperty, null);
-                if (FindName("SpinR3") is RotateTransform r3s) r3s.BeginAnimation(RotateTransform.AngleProperty, null);
+                // Stop rotation
+                if (FindName("CaptureRotate") is RotateTransform rs) rs.BeginAnimation(RotateTransform.AngleProperty, null);
                     if (FindName("CaptureSpinner") is FrameworkElement spin) spin.Visibility = Visibility.Collapsed;
                     if (FindName("CaptureLabel") is FrameworkElement label) label.Visibility = Visibility.Visible;
                     // no tint fade needed
