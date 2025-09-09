@@ -36,6 +36,9 @@ public partial class MainWindow
             // Start auto-extraction timer
             _autoExtractTimer.Tick += AutoExtractTimer_Tick;
             _autoExtractTimer.Start();
+
+            // Initial render of Q&A history
+            RefreshQnAHistoryUi();
         }
         catch { }
     }
@@ -124,6 +127,7 @@ public partial class MainWindow
                         UpdatedAt = DateTime.UtcNow
                     };
                     QnAStore.Add(item);
+                    RefreshQnAHistoryUi();
                 }
                 catch { }
             }
@@ -149,6 +153,31 @@ public partial class MainWindow
                 if (FindName("LastQuestionText") is TextBlock lqt)
                     lqt.Text = string.IsNullOrWhiteSpace(_lastQuestion) ? "No questions asked yet." : _lastQuestion;
             });
+            RefreshQnAHistoryUi();
+        }
+        catch { }
+    }
+
+    private void RefreshQnAHistoryUi()
+    {
+        try
+        {
+            if (FindName("QnAHistoryItems") is not StackPanel host) return;
+            host.Children.Clear();
+            foreach (var item in QnAStore.GetHistory())
+            {
+                var exp = new Expander
+                {
+                    Header = $"Q{(item.QuestionNumber > 0 ? item.QuestionNumber : 0)}: {item.Question}",
+                    IsExpanded = false,
+                    Margin = new Thickness(0, 4, 0, 0)
+                };
+                var content = new StackPanel();
+                var ans = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = string.IsNullOrWhiteSpace(item.Answer) ? "(pending)" : item.Answer };
+                content.Children.Add(ans);
+                exp.Content = content;
+                host.Children.Add(exp);
+            }
         }
         catch { }
     }

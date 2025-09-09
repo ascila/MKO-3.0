@@ -14,10 +14,14 @@ namespace OverlayOverlay;
 
 public partial class MainWindow
 {
+    private bool _captureRunning;
+
     private async void Capture_RunFlow_Click(object? sender, RoutedEventArgs e)
     {
         try
         {
+            _captureRunning = true;
+            try { _autoExtractTimer.Stop(); } catch { }
             var ctx = ContextProvider.Get();
             var transcript = _transcript.ToString();
             if (string.IsNullOrWhiteSpace(transcript) || string.IsNullOrWhiteSpace(ctx.Cv) || string.IsNullOrWhiteSpace(ctx.JobDescription))
@@ -74,6 +78,14 @@ public partial class MainWindow
 
             if (isQuestion && !string.IsNullOrWhiteSpace(question))
             {
+                // Dedupe: skip if same as most recent
+                var recent = QnAStore.GetHistory().FirstOrDefault();
+                if (recent != null && Normalize(recent.Question) == Normalize(question))
+                {
+                    AppendLog("Duplicate question ignored (same as latest)");
+                }
+                else
+                {
                 // Add pending QnA
                 var id = DateTime.UtcNow.Ticks;
                 var item = new QnA
@@ -91,6 +103,7 @@ public partial class MainWindow
                 QnAStore.Add(item);
                 _lastQuestion = question;
                 Dispatcher.Invoke(UpdateTranscriptUi);
+                RefreshQnAHistoryUi();
 
                 // Build conversation history from answered
                 var history = QnAStore.GetAnsweredPairs(10).ToArray();
@@ -117,16 +130,25 @@ public partial class MainWindow
                 {
                     QnAStore.Update(id, q => { q.Answer = answer; q.Status = "answered"; });
                     AppendLog("Answer generated (stub)");
+                    RefreshQnAHistoryUi();
+                    FlashCaptureButton(success: true);
+                }
+                else
+                {
+                    FlashCaptureButton(success: false);
+                }
                 }
             }
             else
             {
                 AppendLog("Not a question according to AI (ignored)");
+                FlashCaptureButton(success: false);
             }
         }
         catch (Exception ex)
         {
             AppendLog("Capture flow error: " + ex.Message);
+            FlashCaptureButton(success: false);
         }
         finally
         {
@@ -144,7 +166,36 @@ public partial class MainWindow
                 }
             }
             catch { }
+            _captureRunning = false;
+            try { _autoExtractTimer.Start(); } catch { }
         }
+    }
+
+    private static string Normalize(string s)
+        => (s ?? string.Empty).Trim().ToLowerInvariant().Replace("  ", " ");
+
+    private void FlashCaptureButton(bool success)
+    {
+        try
+        {
+            if (FindName("BtnCapture") is not Button capBtn) return;
+            var ok = success;
+            var from = ok ? Color.FromRgb(34, 197, 94) : Color.FromRgb(239, 68, 68); // green/red
+            // original target color from theme
+            var toBrush = TryFindResource("SoftAccentBrush") as SolidColorBrush;
+            var to = toBrush is SolidColorBrush sb ? sb.Color : Color.FromRgb(111, 168, 255);
+            capBtn.Background = new SolidColorBrush(from);
+            var anim = new ColorAnimation(from, to, new Duration(TimeSpan.FromMilliseconds(900))) { FillBehavior = FillBehavior.Stop };
+            anim.Completed += (_, __) =>
+            {
+                try { capBtn.Background = new SolidColorBrush(to); } catch { }
+            };
+            if (capBtn.Background is SolidColorBrush b)
+            {
+                b.BeginAnimation(SolidColorBrush.ColorProperty, anim);
+            }
+        }
+        catch { }
     }
 
     private static string? BitmapSourceToDataUrl(BitmapSource bmp)
@@ -161,4 +212,3 @@ public partial class MainWindow
         catch { return null; }
     }
 }
-

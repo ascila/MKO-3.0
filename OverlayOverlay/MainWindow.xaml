@@ -151,6 +151,17 @@
           </StackPanel>
         </Border>
 
+        <!-- Q&A History (accordion style) -->
+        <Border Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
+          <StackPanel>
+            <TextBlock Text="Q&amp;A History" FontWeight="Bold"/>
+            <TextBlock Text="Newest first. Click to expand answers." Opacity="0.8" FontSize="12"/>
+            <ScrollViewer Height="160" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+              <StackPanel x:Name="QnAHistoryItems" />
+            </ScrollViewer>
+          </StackPanel>
+        </Border>
+
         <!-- Live Transcription Panel -->
         <Border Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10">
           <StackPanel>
