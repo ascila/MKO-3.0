@@ -195,6 +195,13 @@
           </StackPanel>
         </Border>
       </Popup>
+
+      <!-- Toast notification near Capture button -->
+      <Popup x:Name="ToastPopup" PlacementTarget="{Binding ElementName=BtnCapture}" Placement="Top" StaysOpen="False" AllowsTransparency="True">
+        <Border Background="#CC111111" CornerRadius="6" Padding="8,4" BorderBrush="#33000000" BorderThickness="1">
+          <TextBlock x:Name="ToastText" Foreground="White" FontSize="12"/>
+        </Border>
+      </Popup>
     </Grid>
   </Border>
 </Window>

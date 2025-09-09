@@ -20,14 +20,30 @@ public class QuestionExtractor
 
     public async Task<(bool isQuestion, string question)> ExtractAsync(string text, string[]? contextualKeywords = null)
     {
-        // Filtro rápido (como en tu mock JS)
+        // Prefiltro rápido
         var trimmed = (text ?? string.Empty).Trim();
-        if (trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 3 || trimmed.Length < 10)
+        var words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length < 3 || trimmed.Length < 10)
             return (false, "");
+        // Heurístico adicional: si no hay '?' ni interrogativos, requerir más contexto
+        if (!trimmed.Contains("?"))
+        {
+            var lower = trimmed.ToLowerInvariant();
+            string[] cues = new[] {
+                // EN
+                "who","what","why","how","when","where","can","could","would","should","do ","does","did",
+                // ES
+                "qué","que ","cómo","como ","cuándo","cuando ","dónde","donde ","por qué","por que","puedes","podrías","podrias","harías","harias"
+            };
+            bool hasCue = false;
+            foreach (var c in cues) { if (lower.Contains(c)) { hasCue = true; break; } }
+            if (!hasCue && words.Length < 5)
+                return (false, "");
+        }
 
         var prompt = BuildPrompt(trimmed, contextualKeywords);
 
-        using var http = new HttpClient();
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _openAiApiKey);
 
         var body = new
@@ -42,15 +58,27 @@ public class QuestionExtractor
             response_format = new { type = "json_object" }
         };
         var json = JsonSerializer.Serialize(body);
-        var resp = await http.PostAsync("https://api.openai.com/v1/chat/completions", new StringContent(json, Encoding.UTF8, "application/json"));
-        var respText = await resp.Content.ReadAsStringAsync();
+
+        var uri = "https://api.openai.com/v1/chat/completions";
+        HttpResponseMessage resp = null!;
+        string respText = string.Empty;
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            resp = await http.PostAsync(uri, new StringContent(json, Encoding.UTF8, "application/json"));
+            respText = await resp.Content.ReadAsStringAsync();
+            if ((int)resp.StatusCode == 429 || (int)resp.StatusCode >= 500)
+            {
+                await Task.Delay(600);
+                continue;
+            }
+            break;
+        }
         resp.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(respText);
         var content = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
         if (string.IsNullOrWhiteSpace(content)) return (false, "");
 
-        // content is expected to be a JSON object
         using var j = JsonDocument.Parse(content);
         var isQ = j.RootElement.TryGetProperty("isQuestion", out var isQe) && isQe.GetBoolean();
         var q = j.RootElement.TryGetProperty("question", out var qe) ? qe.GetString() ?? "" : "";
@@ -61,20 +89,46 @@ public class QuestionExtractor
     {
         var sb = new StringBuilder();
         sb.AppendLine("You are an expert linguist specializing in interview question analysis.");
-        sb.AppendLine("Extract a single clear question from a noisy transcript. Remove filler. Keep original language. Respond ONLY with JSON.");
+        sb.AppendLine("Your primary task is to extract a single, clear, and concise question from a potentially noisy block of transcribed text. You must synthesize the core inquiry, removing filler words, conversational fluff, and redundant phrases. The final output must be a well-formed question.");
+        sb.AppendLine();
+        sb.AppendLine("CRITICAL INSTRUCTION #1: DO NOT TRANSLATE. You MUST preserve the original language of the text. If the input is in Spanish, the output MUST be in Spanish. If it is in English, the output MUST be in English.");
+        sb.AppendLine("CRITICAL INSTRUCTION #2: Use the provided \"contextualKeywords\" to correct transcription errors for technical terms, names, or specific concepts.");
+        sb.AppendLine("CRITICAL INSTRUCTION #3: If multiple questions are present, return only the most complete and relevant one. Do not merge or invent content that is not present in the text.");
+        sb.AppendLine("CRITICAL INSTRUCTION #4: Respond ONLY with a valid JSON object. Do not include explanations, commentary, or text outside the JSON.");
+        sb.AppendLine();
+        sb.AppendLine("Additional constraint: if isQuestion is true, ensure the question ends with a single question mark (?) and do not wrap it in quotes.");
         sb.AppendLine();
         sb.AppendLine("Text to analyze:");
+        sb.AppendLine("\"\"\"");
         sb.AppendLine(text);
+        sb.AppendLine("\"\"\"");
         if (contextualKeywords is { Length: > 0 })
         {
             sb.AppendLine();
-            sb.AppendLine("Contextual Keywords:");
+            sb.AppendLine("Contextual Keywords to use for correction:");
             foreach (var k in contextualKeywords)
                 sb.AppendLine("- " + k);
         }
         sb.AppendLine();
-        sb.AppendLine("Output JSON fields: isQuestion:boolean, question:string");
+        sb.AppendLine("EXAMPLE 1 (English with Keyword Correction):");
+        sb.AppendLine("- Text: \"tell me about your experience with pavor bay\"");
+        sb.AppendLine("- Contextual Keywords: [\"Power BI\", \"SQL\", \"Python\"]");
+        sb.AppendLine("- Output: {\"isQuestion\": true, \"question\": \"Tell me about your experience with Power BI?\"}");
+        sb.AppendLine();
+        sb.AppendLine("EXAMPLE 2 (Spanish without correction):");
+        sb.AppendLine("- Text: \"ok entonces... estaba pensando... cuéntame de una vez que tuviste que, ya sabes, liderar un proyecto importante?\"");
+        sb.AppendLine("- Contextual Keywords: []");
+        sb.AppendLine("- Output: {\"isQuestion\": true, \"question\": \"Cuéntame de una vez que tuviste que liderar un proyecto importante?\"}");
+        sb.AppendLine();
+        sb.AppendLine("EXAMPLE 3 (English, No Question):");
+        sb.AppendLine("- Text: \"yes, that totally makes sense, thank you\"");
+        sb.AppendLine("- Contextual Keywords: [\"React\", \"JavaScript\"]");
+        sb.AppendLine("- Output: {\"isQuestion\": false, \"question\": \"\"}");
+        sb.AppendLine();
+        sb.AppendLine("EXAMPLE 4 (Spanish, No Question):");
+        sb.AppendLine("- Text: \"si, eso tiene todo el sentido, gracias\"");
+        sb.AppendLine("- Contextual Keywords: []");
+        sb.AppendLine("- Output: {\"isQuestion\": false, \"question\": \"\"}");
         return sb.ToString();
     }
 }
-

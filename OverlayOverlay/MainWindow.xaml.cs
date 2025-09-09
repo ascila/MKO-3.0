@@ -11,6 +11,8 @@ using System.Text;
 using OverlayOverlay.Services;
 using NAudio.Wave;
 using System.Windows.Media.Animation;
+using System.Diagnostics;
+using System.Windows.Media.Animation;
 
 namespace OverlayOverlay;
 
@@ -41,6 +43,22 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _levelTimer.Tick += (_, __) => UpdateLevelUi();
+    }
+
+    private void ShowToast(string message, int ms = 2000)
+    {
+        try
+        {
+            if (FindName("ToastText") is TextBlock tt && FindName("ToastPopup") is Popup tp)
+            {
+                tt.Text = message;
+                tp.IsOpen = true;
+                var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
+                t.Tick += (_, __) => { try { tp.IsOpen = false; } catch { } t.Stop(); };
+                t.Start();
+            }
+        }
+        catch { }
     }
 
     private void AppendLog(string message)
@@ -774,7 +792,7 @@ public partial class MainWindow : Window
                 _lastQuestion = q;
                 try { Clipboard.SetText(q); } catch { }
                 this.Title = $"Overlay — Q: {q}";
-                MessageBox.Show($"Pregunta capturada:\n{q}", "Capturar", MessageBoxButton.OK, MessageBoxImage.Information);
+                ShowToast("Pregunta capturada", 2000);
 
                 // Enviar a la aplicación web
                 try
@@ -787,17 +805,18 @@ public partial class MainWindow : Window
                 }
                 catch (Exception ex2)
                 {
-                    MessageBox.Show("Error enviando a la aplicación web: " + ex2.Message, "Integración", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ShowToast("Error enviando a la aplicación web", 3000);
+                    AppendLog("Backend: error sending - " + ex2.Message);
                 }
             }
             else
             {
-                MessageBox.Show("No se detectó una pregunta clara en el fragmento actual.", "Capturar", MessageBoxButton.OK, MessageBoxImage.Information);
+                ShowToast("No se detectó una pregunta clara", 2000);
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Error capturando pregunta: " + ex.Message, "Capturar", MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowToast("Error capturando pregunta", 3000);
         }
         finally
         {
