@@ -52,15 +52,16 @@ public class AzureSpeechTranscriber : IDisposable
         }
         catch { }
 
-        // Auto-detect source between EN/ES (extendable)
-        var autoDetect = AutoDetectSourceLanguageConfig.FromLanguages(new[] { "en-US", "es-ES" });
+        // Force recognition language if provided; default to en-US
+        var recogLang = string.IsNullOrWhiteSpace(language) ? "en-US" : language;
+        sconfig.SpeechRecognitionLanguage = recogLang;
 
         // Azure espera PCM 16kHz mono 16-bit little-endian
         var format = AudioStreamFormat.GetWaveFormatPCM(16000, 16, 1);
         _pushStream = AudioInputStream.CreatePushStream(format);
         _audioConfig = AudioConfig.FromStreamInput(_pushStream);
 
-        _recognizer = new SpeechRecognizer(sconfig, autoDetect, _audioConfig);
+        _recognizer = new SpeechRecognizer(sconfig, _audioConfig);
 
         _recognizer.Recognizing += (_, e) =>
         {
@@ -70,6 +71,10 @@ public class AzureSpeechTranscriber : IDisposable
                 if (!string.IsNullOrWhiteSpace(text)) PartialTranscription?.Invoke(text);
                 DebugLog?.Invoke($"Recognizing: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'");
             }
+            else
+            {
+                DebugLog?.Invoke($"Recognizing event reason: {e.Result.Reason}");
+            }
         };
         _recognizer.Recognized += (_, e) =>
         {
@@ -78,6 +83,11 @@ public class AzureSpeechTranscriber : IDisposable
                 var text = e.Result.Text;
                 if (!string.IsNullOrWhiteSpace(text)) FinalTranscription?.Invoke(text);
                 DebugLog?.Invoke($"Recognized: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'");
+            }
+            else if (e.Result.Reason == ResultReason.NoMatch)
+            {
+                var details = NoMatchDetails.FromResult(e.Result);
+                DebugLog?.Invoke($"NoMatch: {details.Reason}");
             }
         };
         _recognizer.Canceled += (_, e) =>
