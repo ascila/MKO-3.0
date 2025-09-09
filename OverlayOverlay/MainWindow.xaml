@@ -83,17 +83,14 @@
       <WrapPanel Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" >
         <Button x:Name="BtnCapture" MinWidth="190" Height="33" Style="{StaticResource PrimaryButtonStyle}">
           <Grid>
-            <!-- Green tint over original style while processing; faded out on complete -->
-            <Border x:Name="CaptureTint" Background="#FF10B981" Opacity="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-
-            <!-- Spinner shown during capture -->
+            <!-- Spinner shown during capture (clean dotted ring) -->
             <Grid x:Name="CaptureSpinner" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center">
-              <Viewbox Width="16" Height="16">
-                <Grid Width="16" Height="16">
-                  <!-- Wedge arc that rotates -->
-                  <Path x:Name="SpinnerArc" Fill="#FFFFFFFF" Data="M8,0 A8,8 0 0 1 16,8 L8,8 Z">
+              <Viewbox Width="18" Height="18">
+                <Grid Width="18" Height="18">
+                  <Path Stroke="#FFFFFFFF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeDashArray="6 12"
+                        Data="M9,1 A8,8 0 1 1 9.001,1">
                     <Path.RenderTransform>
-                      <RotateTransform x:Name="SpinnerRotate" Angle="0" CenterX="8" CenterY="8"/>
+                      <RotateTransform x:Name="SpinnerRotate" Angle="0" CenterX="9" CenterY="9"/>
                     </Path.RenderTransform>
                   </Path>
                 </Grid>

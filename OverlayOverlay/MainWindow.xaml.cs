@@ -729,21 +729,7 @@ public partial class MainWindow : Window
                     if (capRef.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
                         tb.Text = "Capturing...";
                 }
-                if (FindName("CaptureFill") is Border fill)
-                {
-                    fill.Visibility = Visibility.Visible;
-                    fill.Width = 0;
-                    var target = (capRef != null && capRef.ActualWidth > 0) ? capRef.ActualWidth : 190;
-                    var anim = new System.Windows.Media.Animation.DoubleAnimation(0, target, new Duration(TimeSpan.FromSeconds(1.2)))
-                    {
-                        RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
-                    };
-                    _captureSb = new System.Windows.Media.Animation.Storyboard();
-                    System.Windows.Media.Animation.Storyboard.SetTarget(anim, fill);
-                    System.Windows.Media.Animation.Storyboard.SetTargetProperty(anim, new PropertyPath(Border.WidthProperty));
-                    _captureSb.Children.Add(anim);
-                    _captureSb.Begin();
-                }
+                // spinner animation handled via RotateTransform below
             }
             catch { }
             // Mostrar spinner dentro del botón y ocultar etiqueta
@@ -756,11 +742,7 @@ public partial class MainWindow : Window
                     var rot = new DoubleAnimation(0, 360, new Duration(TimeSpan.FromSeconds(0.8))) { RepeatBehavior = RepeatBehavior.Forever };
                     rt.BeginAnimation(RotateTransform.AngleProperty, rot);
                 }
-                if (FindName("CaptureTint") is Border tint)
-                {
-                    tint.Opacity = 0.85;
-                    tint.Visibility = Visibility.Visible;
-                }
+                // no green tint per request
             }
             catch { }
             var text = _transcript.ToString().Trim();
@@ -820,7 +802,7 @@ public partial class MainWindow : Window
             try
             {
                 if (_captureSb != null) { _captureSb.Stop(); _captureSb = null; }
-                if (FindName("CaptureFill") is Border fill1) { fill1.Width = 0; fill1.Visibility = Visibility.Collapsed; }
+                // no fill cleanup needed
                 // Detener spinner y restaurar etiqueta
                 try
                 {
@@ -828,12 +810,7 @@ public partial class MainWindow : Window
                         rtStop.BeginAnimation(RotateTransform.AngleProperty, null);
                     if (FindName("CaptureSpinner") is FrameworkElement spin) spin.Visibility = Visibility.Collapsed;
                     if (FindName("CaptureLabel") is FrameworkElement label) label.Visibility = Visibility.Visible;
-                    if (FindName("CaptureTint") is Border tint1)
-                    {
-                        var fade = new DoubleAnimation(tint1.Opacity, 0, new Duration(TimeSpan.FromMilliseconds(350)));
-                        fade.Completed += (_, __) => { tint1.Visibility = Visibility.Collapsed; };
-                        tint1.BeginAnimation(Border.OpacityProperty, fade);
-                    }
+                    // no tint fade needed
                 }
                 catch { }
                 if (FindName("BtnCapture") is Button capBtn1)
