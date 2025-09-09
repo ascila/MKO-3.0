@@ -53,9 +53,9 @@ public class AzureSpeechTranscriber : IDisposable
         sconfig.SetProperty(PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "250");
         // Ask SDK to deliver partials as soon as possible
         try { sconfig.SetProperty(PropertyId.SpeechServiceResponse_StablePartialResultThreshold, "1"); } catch { }
-        // Dictation mode and segmentation by silence (if available)
-        try { sconfig.EnableDictation(); } catch { }
-        try { sconfig.SetProperty(PropertyId.Speech_SegmentationSilenceTimeoutMs, "800"); } catch { }
+        // Temporarily disable dictation/segmentation tweaks while we stabilize
+        // try { sconfig.EnableDictation(); } catch { }
+        // try { sconfig.SetProperty(PropertyId.Speech_SegmentationSilenceTimeoutMs, "800"); } catch { }
         try
         {
             var logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "azure-speech-sdk.log");
@@ -163,13 +163,15 @@ public class AzureSpeechTranscriber : IDisposable
         {
             sample = new StereoToMonoSampleProvider(sample) { LeftVolume = 0.5f, RightVolume = 0.5f };
         }
-        // Apply a mild gain trim (-2.5 dB approx)
-        var trimmed = new VolumeSampleProvider(sample) { Volume = 0.75f };
+        // Keep unity gain to avoid too-low levels to Azure
+        var trimmed = new VolumeSampleProvider(sample) { Volume = 1.0f };
         var resampled = new WdlResamplingSampleProvider(trimmed, 16000);
         var wave16 = new SampleToWaveProvider16(resampled);
 
         var buffer = new byte[640]; // ~20ms @ 16kHz mono 16-bit = 640 bytes
         var bytesThisSecond = 0;
+        double rmsAccum = 0;
+        int rmsCount = 0;
         var lastTick = DateTime.UtcNow;
         const int bytesPerSecond = 16000 * 2; // PCM16 mono
         while (!ct.IsCancellationRequested)
@@ -178,6 +180,14 @@ public class AzureSpeechTranscriber : IDisposable
             if (read > 0)
             {
                 pushStream.Write(buffer, read);
+                // Compute RMS for diagnostics
+                for (int i = 0; i < read; i += 2)
+                {
+                    short s = BitConverter.ToInt16(buffer, i);
+                    double norm = s / 32768.0;
+                    rmsAccum += norm * norm;
+                    rmsCount++;
+                }
                 bytesThisSecond += read;
                 // Pace according to audio duration written
                 int delayMs = (int)Math.Round((read * 1000.0) / bytesPerSecond);
@@ -193,8 +203,12 @@ public class AzureSpeechTranscriber : IDisposable
             var now = DateTime.UtcNow;
             if ((now - lastTick).TotalSeconds >= 1.0)
             {
-                DebugLog?.Invoke($"Audio pump: {bytesThisSecond} B/s to Azure");
+                double rms = rmsCount > 0 ? Math.Sqrt(rmsAccum / rmsCount) : 0.0;
+                double dbfs = rms > 0 ? 20.0 * Math.Log10(rms) : -120.0;
+                DebugLog?.Invoke($"Audio pump: {bytesThisSecond} B/s to Azure, RMS {dbfs:F1} dBFS");
                 bytesThisSecond = 0;
+                rmsAccum = 0;
+                rmsCount = 0;
                 lastTick = now;
             }
         }
