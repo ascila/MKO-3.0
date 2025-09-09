@@ -179,6 +179,7 @@ public partial class MainWindow
             var list = QnAStore.GetHistory().ToList();
             int idx = 1; // Start from Q1 at the top (newest first)
             bool expandedAnswered = false;
+            bool regenAdded = false;
             foreach (var item in list)
             {
                 var exp = new Expander
@@ -188,8 +189,53 @@ public partial class MainWindow
                     Margin = new Thickness(0, 4, 0, 0)
                 };
                 var content = new StackPanel();
+
+                // If this is the first answered item, add Regenerate icon button
+                if (!regenAdded && !string.IsNullOrWhiteSpace(item.Answer))
+                {
+                    var topBar = new DockPanel();
+                    var regenBtn = new Button
+                    {
+                        Width = 28,
+                        Height = 28,
+                        Margin = new Thickness(0, 0, 0, 6),
+                        ToolTip = "Regenerate answer"
+                    };
+                    regenBtn.Tag = item.Id;
+                    regenBtn.Click += Regenerate_Click;
+                    var icon = new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), Text = "\uE72C", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+                    regenBtn.Content = icon;
+                    DockPanel.SetDock(regenBtn, Dock.Right);
+                    topBar.Children.Add(regenBtn);
+                    content.Children.Add(topBar);
+                    regenAdded = true;
+                }
+
+                // Question (bold + larger font)
+                var qText = new TextBlock
+                {
+                    Text = item.Question,
+                    TextWrapping = TextWrapping.Wrap,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 15,
+                    Margin = new Thickness(0, 0, 0, 6)
+                };
+                content.Children.Add(qText);
+
+                // Answer body
                 var ans = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = string.IsNullOrWhiteSpace(item.Answer) ? "(pending)" : item.Answer };
                 content.Children.Add(ans);
+
+                // Bottom actions: Copy Q+A
+                var bottomBar = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+                var copyBtn = new Button { Width = 28, Height = 28, ToolTip = "Copy question and answer" };
+                copyBtn.Tag = item.Id;
+                copyBtn.Click += CopyQnA_Click;
+                var copyIcon = new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), Text = "\uE8C8", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+                copyBtn.Content = copyIcon;
+                DockPanel.SetDock(copyBtn, Dock.Right);
+                bottomBar.Children.Add(copyBtn);
+                content.Children.Add(bottomBar);
                 exp.Content = content;
 
                 // Card container around each expander
@@ -213,6 +259,87 @@ public partial class MainWindow
                 host.Children.Add(card);
                 idx++;
             }
+        }
+        catch { }
+    }
+
+    private void CopyQnA_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Button btn) return;
+            if (btn.Tag is not long id) return;
+            var item = QnAStore.GetHistory().FirstOrDefault(x => x.Id == id);
+            if (item == null) return;
+            var answer = string.IsNullOrWhiteSpace(item.Answer) ? "(pending)" : item.Answer;
+            var text = $"{item.Question}\n\n{answer}";
+            Clipboard.SetText(text);
+        }
+        catch { }
+    }
+
+    private async void Regenerate_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Button btn) return;
+            if (btn.Tag is not long id) return;
+            var history = QnAStore.GetHistory();
+            var item = history.FirstOrDefault(x => x.Id == id);
+            if (item == null || string.IsNullOrWhiteSpace(item.Question)) return;
+
+            // Clear old answer to indicate pending
+            QnAStore.Update(id, q => { q.Answer = null; q.Status = "pending"; });
+            RefreshQnAHistoryUi();
+
+            // Gather context
+            var ctx = ContextProvider.Get();
+            string? imageDataUrl = null;
+            string? clipboardText = null;
+            try
+            {
+                var img = Clipboard.GetImage();
+                if (img != null) imageDataUrl = BitmapSourceToDataUrl(img);
+                if (string.IsNullOrWhiteSpace(imageDataUrl))
+                {
+                    var txt = Clipboard.GetText();
+                    if (!string.IsNullOrWhiteSpace(txt)) clipboardText = txt;
+                }
+            }
+            catch { }
+
+            // Conversation history excluding this question
+            var conv = Services.QnAStore.GetAnsweredPairs(10)
+                        .Where(p => !string.Equals(p.question, item.Question, StringComparison.OrdinalIgnoreCase))
+                        .ToArray();
+
+            var input = new AnswerInput
+            {
+                Question = item.Question,
+                Language = GetSelectedLanguageCode(),
+                Cv = ctx.Cv ?? string.Empty,
+                JobDescription = ctx.JobDescription ?? string.Empty,
+                PersonalProfile = ctx.PersonalProfile,
+                ProjectInfo = ctx.ProjectInfo,
+                ConversationHistory = conv.Length > 0 ? conv : null,
+                IsFollowUp = false,
+                ImageDataUrl = imageDataUrl,
+                ClipboardText = clipboardText,
+                DocumentId = string.IsNullOrWhiteSpace(ctx.DocumentId) ? null : ctx.DocumentId,
+                QuestionNumber = item.QuestionNumber > 0 ? item.QuestionNumber : history.Count
+            };
+
+            var result = await AnswerGenerator.GenerateAsync(input);
+            var answer = (result.Answer ?? string.Empty).Trim();
+            if (!string.IsNullOrWhiteSpace(answer))
+            {
+                QnAStore.Update(id, q => { q.Answer = answer; q.Status = "answered"; q.UpdatedAt = DateTime.UtcNow; });
+            }
+            else
+            {
+                QnAStore.Update(id, q => { q.Answer = "(no answer)"; q.Status = "answered"; q.UpdatedAt = DateTime.UtcNow; });
+            }
+            RefreshQnAHistoryUi();
         }
         catch { }
     }
