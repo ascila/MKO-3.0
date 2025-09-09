@@ -20,10 +20,6 @@ public class AzureSpeechTranscriber : IDisposable
     private DateTime? _speechStartUtc;
     private DateTime? _speechEndUtc;
     private bool _firstPartialReported;
-    private string _lastPartial = string.Empty;
-    private string _lastFinalEmitted = string.Empty;
-    private System.Timers.Timer? _partialDebounce;
-    private const int PartialDebounceMs = 600; // finalize after inactivity
 
     public event Action<string>? PartialTranscription;
     public event Action<string>? FinalTranscription;
@@ -53,9 +49,6 @@ public class AzureSpeechTranscriber : IDisposable
         sconfig.SetProperty(PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "250");
         // Ask SDK to deliver partials as soon as possible
         try { sconfig.SetProperty(PropertyId.SpeechServiceResponse_StablePartialResultThreshold, "1"); } catch { }
-        // Temporarily disable dictation/segmentation tweaks while we stabilize
-        // try { sconfig.EnableDictation(); } catch { }
-        // try { sconfig.SetProperty(PropertyId.Speech_SegmentationSilenceTimeoutMs, "800"); } catch { }
         try
         {
             var logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "azure-speech-sdk.log");
@@ -83,18 +76,6 @@ public class AzureSpeechTranscriber : IDisposable
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     PartialTranscription?.Invoke(text);
-                    _lastPartial = text;
-                    // Debounce to produce a client-side final if no updates for a short while
-                    try
-                    {
-                        _partialDebounce ??= new System.Timers.Timer(PartialDebounceMs) { AutoReset = false };
-                        _partialDebounce.Stop();
-                        _partialDebounce.Interval = PartialDebounceMs;
-                        _partialDebounce.Elapsed -= OnPartialDebounceElapsed;
-                        _partialDebounce.Elapsed += OnPartialDebounceElapsed;
-                        _partialDebounce.Start();
-                    }
-                    catch { }
                     if (!_firstPartialReported && _speechStartUtc.HasValue)
                     {
                         var ms = (int)(DateTime.UtcNow - _speechStartUtc.Value).TotalMilliseconds;
@@ -114,23 +95,13 @@ public class AzureSpeechTranscriber : IDisposable
             if (e.Result.Reason == ResultReason.RecognizedSpeech)
             {
                 var text = e.Result.Text;
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    if (!string.Equals(text, _lastFinalEmitted, StringComparison.Ordinal))
-                    {
-                        _lastFinalEmitted = text;
-                        FinalTranscription?.Invoke(text);
-                    }
-                }
+                if (!string.IsNullOrWhiteSpace(text)) FinalTranscription?.Invoke(text);
                 var now = DateTime.UtcNow;
                 var fromStart = _speechStartUtc.HasValue ? (int)(now - _speechStartUtc.Value).TotalMilliseconds : (int?)null;
                 var fromEnd = _speechEndUtc.HasValue ? (int)(now - _speechEndUtc.Value).TotalMilliseconds : (int?)null;
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    DebugLog?.Invoke($"Recognized: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'" +
-                        (fromStart.HasValue ? $" | latency_start={fromStart}ms" : string.Empty) +
-                        (fromEnd.HasValue ? $" latency_end={fromEnd}ms" : string.Empty));
-                }
+                DebugLog?.Invoke($"Recognized: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'" +
+                    (fromStart.HasValue ? $" | latency_start={fromStart}ms" : string.Empty) +
+                    (fromEnd.HasValue ? $" latency_end={fromEnd}ms" : string.Empty));
             }
             else if (e.Result.Reason == ResultReason.NoMatch)
             {
@@ -144,7 +115,7 @@ public class AzureSpeechTranscriber : IDisposable
         };
         _recognizer.SessionStarted += (_, __) => DebugLog?.Invoke("SessionStarted");
         _recognizer.SessionStopped += (_, __) => DebugLog?.Invoke("SessionStopped");
-        _recognizer.SpeechStartDetected += (_, __) => { _speechStartUtc = DateTime.UtcNow; _speechEndUtc = null; _firstPartialReported = false; _lastPartial = string.Empty; DebugLog?.Invoke("SpeechStartDetected"); };
+        _recognizer.SpeechStartDetected += (_, __) => { _speechStartUtc = DateTime.UtcNow; _speechEndUtc = null; _firstPartialReported = false; DebugLog?.Invoke("SpeechStartDetected"); };
         _recognizer.SpeechEndDetected += (_, __) => { _speechEndUtc = DateTime.UtcNow; DebugLog?.Invoke("SpeechEndDetected"); };
 
         await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
@@ -163,15 +134,13 @@ public class AzureSpeechTranscriber : IDisposable
         {
             sample = new StereoToMonoSampleProvider(sample) { LeftVolume = 0.5f, RightVolume = 0.5f };
         }
-        // Keep unity gain to avoid too-low levels to Azure
-        var trimmed = new VolumeSampleProvider(sample) { Volume = 1.0f };
+        // Apply a mild gain trim (-2.5 dB approx)
+        var trimmed = new VolumeSampleProvider(sample) { Volume = 0.75f };
         var resampled = new WdlResamplingSampleProvider(trimmed, 16000);
         var wave16 = new SampleToWaveProvider16(resampled);
 
         var buffer = new byte[640]; // ~20ms @ 16kHz mono 16-bit = 640 bytes
         var bytesThisSecond = 0;
-        double rmsAccum = 0;
-        int rmsCount = 0;
         var lastTick = DateTime.UtcNow;
         const int bytesPerSecond = 16000 * 2; // PCM16 mono
         while (!ct.IsCancellationRequested)
@@ -180,14 +149,6 @@ public class AzureSpeechTranscriber : IDisposable
             if (read > 0)
             {
                 pushStream.Write(buffer, read);
-                // Compute RMS for diagnostics
-                for (int i = 0; i < read; i += 2)
-                {
-                    short s = BitConverter.ToInt16(buffer, i);
-                    double norm = s / 32768.0;
-                    rmsAccum += norm * norm;
-                    rmsCount++;
-                }
                 bytesThisSecond += read;
                 // Pace according to audio duration written
                 int delayMs = (int)Math.Round((read * 1000.0) / bytesPerSecond);
@@ -203,12 +164,8 @@ public class AzureSpeechTranscriber : IDisposable
             var now = DateTime.UtcNow;
             if ((now - lastTick).TotalSeconds >= 1.0)
             {
-                double rms = rmsCount > 0 ? Math.Sqrt(rmsAccum / rmsCount) : 0.0;
-                double dbfs = rms > 0 ? 20.0 * Math.Log10(rms) : -120.0;
-                DebugLog?.Invoke($"Audio pump: {bytesThisSecond} B/s to Azure, RMS {dbfs:F1} dBFS");
+                DebugLog?.Invoke($"Audio pump: {bytesThisSecond} B/s to Azure");
                 bytesThisSecond = 0;
-                rmsAccum = 0;
-                rmsCount = 0;
                 lastTick = now;
             }
         }
