@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using OverlayOverlay.Models;
+using System;
 
 namespace OverlayOverlay.Services;
 
@@ -28,5 +29,10 @@ public static class QnAStore
                      .Take(max)
                      .Select(x => (x.Question, x.Answer!, x.Context));
     }
-}
 
+    public static void RemoveWhere(Predicate<QnA> predicate)
+    {
+        if (predicate == null) return;
+        _items.RemoveAll(predicate);
+    }
+}

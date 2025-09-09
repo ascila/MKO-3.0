@@ -4,6 +4,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
+using OverlayOverlay.Models;
+using OverlayOverlay.Services;
 
 namespace OverlayOverlay.Services;
 
@@ -25,6 +28,16 @@ public class QuestionExtractor
         var words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length < 3 || trimmed.Length < 10)
             return (false, "");
+        // If contextual keywords are not provided, derive from SetupContext
+        if (contextualKeywords == null || contextualKeywords.Length == 0)
+        {
+            try
+            {
+                var ctx = ContextProvider.Get();
+                contextualKeywords = BuildKeywordsFromContext(ctx);
+            }
+            catch { contextualKeywords = Array.Empty<string>(); }
+        }
         // Heurístico adicional: si no hay '?' ni interrogativos, requerir más contexto
         if (!trimmed.Contains("?"))
         {
@@ -130,5 +143,23 @@ public class QuestionExtractor
         sb.AppendLine("- Contextual Keywords: []");
         sb.AppendLine("- Output: {\"isQuestion\": false, \"question\": \"\"}");
         return sb.ToString();
+    }
+
+    private static string[] BuildKeywordsFromContext(SetupContext ctx)
+    {
+        if (ctx == null) return Array.Empty<string>();
+        var src = string.Join("\n", new[] { ctx.Cv ?? string.Empty, ctx.JobDescription ?? string.Empty, ctx.ProjectInfo ?? string.Empty, ctx.PersonalProfile ?? string.Empty });
+        if (string.IsNullOrWhiteSpace(src)) return Array.Empty<string>();
+        var matches = Regex.Matches(src, "[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9+_.-]{2,}");
+        var groups = matches.Select(m => m.Value.Trim())
+                            .Where(w => w.Length >= 3)
+                            .GroupBy(w => w, StringComparer.OrdinalIgnoreCase)
+                            .Select(g => new { Word = g.First(), Count = g.Count() })
+                            .OrderByDescending(x => x.Count)
+                            .ThenBy(x => x.Word)
+                            .Take(40)
+                            .Select(x => x.Word)
+                            .ToArray();
+        return groups;
     }
 }

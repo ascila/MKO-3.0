@@ -131,23 +131,11 @@ public partial class MainWindow
     {
         try
         {
-            // Remove QnA items that are not answered
-            var history = QnAStore.GetHistory();
-            foreach (var item in history)
-            {
-                if (!string.Equals(item.Status, "answered", StringComparison.OrdinalIgnoreCase))
-                {
-                    // simple prune by recreating store list: no direct remove API, so rebuild
-                }
-            }
-            // Since QnAStore has no remove, rebuild by keeping answered only
-            var answered = history.Where(x => string.Equals(x.Status, "answered", StringComparison.OrdinalIgnoreCase)).ToList();
-            // Clear internal list by updating via Update on non-existing ids is not possible; instead, reflect replace via internal method
-            // Workaround: clear reference by adding answered back in order
-            // Note: No direct Clear API, so reinitialize by reflection is overkill; keep UI-level behavior:
+            // Remove unanswered questions from store
+            QnAStore.RemoveWhere(q => !string.Equals(q.Status, "answered", StringComparison.OrdinalIgnoreCase));
 
-            // Show last answered question, if any
-            var lastAnswered = answered.FirstOrDefault();
+            // Show last answered question (if any)
+            var lastAnswered = QnAStore.GetHistory().FirstOrDefault();
             _lastQuestion = lastAnswered?.Question ?? string.Empty;
             Dispatcher.Invoke(() =>
             {
