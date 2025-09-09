@@ -84,9 +84,14 @@ public partial class SessionManagerWindow : Window
         if (SessionsList.SelectedItem is SessionRow row)
         {
             var currentIndex = SessionsList.SelectedIndex;
-            if (MessageBox.Show($"Delete session '{row.Name}'?", "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            var confirm = new ConfirmDialog($"Delete session '{row.Name}'?", "Confirm Delete") { Owner = this };
+            if (confirm.ShowDialog() == true)
             {
-                try { Directory.Delete(row.Path, true); } catch (Exception ex) { MessageBox.Show(ex.Message); }
+                try { Directory.Delete(row.Path, true); }
+                catch (Exception ex)
+                {
+                    try { new InfoDialog(ex.Message, "Delete Error") { Owner = this }.ShowDialog(); } catch { }
+                }
                 LoadSessions();
                 if (SessionsList.Items.Count > 0)
                 {
@@ -126,7 +131,7 @@ public partial class SessionManagerWindow : Window
         if (SessionsList.SelectedItem is SessionRow row)
         {
             try { Process.Start(new ProcessStartInfo("explorer.exe", row.Path) { UseShellExecute = true }); }
-            catch (Exception ex) { MessageBox.Show(ex.Message); }
+            catch (Exception ex) { try { new InfoDialog(ex.Message, "Open Folder Error") { Owner = this }.ShowDialog(); } catch { } }
         }
     }
 
@@ -142,7 +147,7 @@ public partial class SessionManagerWindow : Window
             if (string.IsNullOrWhiteSpace(newName) || newName == row.Name) return;
             var newPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(row.Path)!, newName);
             try { Directory.Move(row.Path, newPath); }
-            catch (Exception ex) { MessageBox.Show(ex.Message); return; }
+            catch (Exception ex) { try { new InfoDialog(ex.Message, "Rename Error") { Owner = this }.ShowDialog(); } catch { } return; }
             LoadSessions();
             SelectByName(newName);
         }
@@ -162,7 +167,7 @@ public partial class SessionManagerWindow : Window
                 idx++;
             }
             try { CopyDirectory(row.Path, candidate); }
-            catch (Exception ex) { MessageBox.Show(ex.Message); return; }
+            catch (Exception ex) { try { new InfoDialog(ex.Message, "Duplicate Error") { Owner = this }.ShowDialog(); } catch { } return; }
             LoadSessions();
             SelectByName(System.IO.Path.GetFileName(candidate));
         }
