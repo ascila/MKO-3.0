@@ -43,7 +43,8 @@ try {
   $ts = Get-Date -Format 'yyyyMMdd-HHmmss'
   $sha = ''
   try { $sha = (& git rev-parse --short HEAD 2>$null) } catch { $sha = '' }
-  $sha = ($sha ?? '').Trim()
+  if ($null -eq $sha) { $sha = '' }
+  $sha = ("$sha").Trim()
 
   $nameParts = @($ts)
   if ($sha) { $nameParts += $sha }
@@ -65,4 +66,3 @@ try {
   Write-Error $_
   exit 1
 }
-

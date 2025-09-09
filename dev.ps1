@@ -1,4 +1,6 @@
 param(
+  [string]$Task,
+  [string]$Desc,
   [switch]$Admin
 )
 
@@ -21,6 +23,16 @@ if (Test-Path $dotenv) {
       }
     }
   }
+}
+
+# Support `dev.bat snap "descripcion"`
+if ($Task -and $Task.ToLowerInvariant() -eq 'snap') {
+  $snap = Join-Path $PSScriptRoot 'tools/snapshot.ps1'
+  if (-not (Test-Path $snap)) { $snap = Join-Path $PSScriptRoot 'tools\snapshot.ps1' }
+  if (-not (Test-Path $snap)) { throw "snapshot.ps1 not found under tools/" }
+  Write-Host "Creating snapshot..." -ForegroundColor Cyan
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $snap -Desc ($Desc)
+  exit $LASTEXITCODE
 }
 
 if ($Admin -and -not ([bool]([Security.Principal.WindowsIdentity]::GetCurrent()).Groups -match 'S-1-5-32-544')) {

@@ -102,6 +102,11 @@ public partial class MainWindow : Window
         // Initialize info panels
         if (FindName("LastQuestionText") is TextBlock lqt) lqt.Text = "No questions asked yet.";
         if (FindName("LiveTranscriptBox") is TextBlock ltb) ltb.Text = "Waiting for audio...";
+        // Idioma por defecto visible: EN activo
+        try { if (FindName("LangEN") is ToggleButton en) en.IsChecked = true; } catch { }
+        try { if (FindName("LangES") is ToggleButton es) es.IsChecked = false; } catch { }
+        // Estado inicial del botA3n Start
+        try { if (FindName("BtnStart") is Button bs) { bs.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68)); bs.Foreground = Brushes.White; } } catch { }
         AppendLog("UI loaded");
     }
 
@@ -467,10 +472,11 @@ public partial class MainWindow : Window
                     Dispatcher.Invoke(UpdateTranscriptUi);
                 };
 
+                AppendLog($"Azure Speech: connecting (region={region}, key=****{(key.Length >= 4 ? key[^4..] : key)})");
                 await _cloudTranscriber.StartAsync(new BufferedToProvider(_loopbackBuffer), GetSelectedLanguageCode(), default);
                 _asrOn = true;
                 try { if (FindName("LiveTranscriptBox") is TextBlock ltbStart) ltbStart.Text = "Listening..."; } catch { }
-                AppendLog("Cloud ASR started");
+                AppendLog("Azure Speech: connected and streaming");
             }
             catch (Exception ex)
             {
@@ -484,8 +490,8 @@ public partial class MainWindow : Window
             _cloudTranscriber = null;
             _asrOn = false;
             try { if (FindName("LiveTranscriptBox") is TextBlock ltbStop) ltbStop.Text = "Waiting for audio..."; } catch { }
-            AppendLog("Cloud ASR stopped");
-        }
+            AppendLog("Azure Speech: stopped");
+    }
     }
 
     private void ClearTranscript_Click(object sender, RoutedEventArgs e)
@@ -536,6 +542,23 @@ public partial class MainWindow : Window
             return "en-US";
         }
         catch { return "en-US"; }
+    }
+
+    private void LangToggle_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not ToggleButton src) return;
+            bool en = src.Name == "LangEN";
+            if (FindName("LangEN") is ToggleButton bEn && FindName("LangES") is ToggleButton bEs)
+            {
+                if (en) { bEn.IsChecked = true; bEs.IsChecked = false; }
+                else { bEn.IsChecked = false; bEs.IsChecked = true; }
+            }
+            _ = RestartCloudTranscriberWithCurrentLanguageAsync();
+            AppendLog($"Language set to {(en ? "en-US" : "es-ES")}");
+        }
+        catch { }
     }
 
     private async System.Threading.Tasks.Task RestartCloudTranscriberWithCurrentLanguageAsync()
@@ -638,13 +661,16 @@ public partial class MainWindow : Window
                     Dispatcher.Invoke(UpdateTranscriptUi);
                 };
 
+                AppendLog($"Azure Speech: connecting (region={region}, key=****{(key.Length >= 4 ? key[^4..] : key)})");
                 await _cloudTranscriber.StartAsync(new BufferedToProvider(_loopbackBuffer!), GetSelectedLanguageCode());
                 _asrOn = true;
-                AppendLog("Cloud ASR started (Start button)");
+                AppendLog("Azure Speech: connected and streaming");
                 if (FindName("BtnStart") is Button btnStart)
                 {
                     if (btnStart.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
                         tb.Text = "Stop";
+                    btnStart.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+                    btnStart.Foreground = Brushes.White;
                 }
             }
             else
@@ -652,11 +678,13 @@ public partial class MainWindow : Window
                 try { await _cloudTranscriber?.StopAsync()!; } catch { }
                 _cloudTranscriber = null;
                 _asrOn = false;
-                AppendLog("Cloud ASR stopped (Start button)");
+                AppendLog("Azure Speech: stopped");
                 if (FindName("BtnStart") is Button btnStart)
                 {
                     if (btnStart.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
                         tb.Text = "Start";
+                    btnStart.Background = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+                    btnStart.Foreground = Brushes.White;
                 }
             }
         }
@@ -704,6 +732,19 @@ public partial class MainWindow : Window
     {
         try
         {
+            // Mostrar progreso mientras se extrae y envía
+            try
+            {
+                if (FindName("BtnCapture") is Button capBtn)
+                {
+                    capBtn.IsEnabled = false;
+                    capBtn.Background = new SolidColorBrush(Color.FromRgb(59, 130, 246));
+                    if (capBtn.Content is StackPanel sp && sp.Children.Count >= 2 && sp.Children[1] is TextBlock tb)
+                        tb.Text = "Capturing...";
+                }
+                if (FindName("CaptureProgress") is ProgressBar pb) pb.Visibility = Visibility.Visible;
+            }
+            catch { }
             var text = _transcript.ToString().Trim();
             if (string.IsNullOrWhiteSpace(text))
             {
@@ -716,7 +757,9 @@ public partial class MainWindow : Window
             if (!string.IsNullOrWhiteSpace(keyOpenAi))
             {
                 _questionExtractor ??= new QuestionExtractor(keyOpenAi!);
+                AppendLog("OpenAI: extracting question from transcript...");
                 var res = await _questionExtractor.ExtractAsync(text);
+                AppendLog("OpenAI: extraction completed");
                 q = res.isQuestion ? res.question : string.Empty;
             }
             else
@@ -736,7 +779,9 @@ public partial class MainWindow : Window
                 {
                     var client = new AutoScribeClient(_apiUrl, _apiKey);
                     var sid = string.IsNullOrWhiteSpace(_sessionId) ? "local-dev-session" : _sessionId;
+                    AppendLog($"Backend: POST {_apiUrl} (session={sid})");
                     await client.SendQuestionAsync(q, sid);
+                    AppendLog("Backend: sent successfully");
                 }
                 catch (Exception ex2)
                 {
@@ -751,6 +796,21 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show("Error capturando pregunta: " + ex.Message, "Capturar", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            try
+            {
+                if (FindName("CaptureProgress") is ProgressBar pb1) pb1.Visibility = Visibility.Collapsed;
+                if (FindName("BtnCapture") is Button capBtn1)
+                {
+                    capBtn1.IsEnabled = true;
+                    if (capBtn1.Content is StackPanel sp1 && sp1.Children.Count >= 2 && sp1.Children[1] is TextBlock tb1)
+                        tb1.Text = "Capture";
+                    capBtn1.ClearValue(Button.BackgroundProperty);
+                }
+            }
+            catch { }
         }
     }
 

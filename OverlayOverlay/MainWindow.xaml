@@ -75,18 +75,19 @@
           </StackPanel>
         </Button>
         <!-- Idioma: EN primero, luego ES -->
-        <ToggleButton x:Name="LangEN" Content="EN" Style="{StaticResource LangToggleStyle}" Click="LangToggle_Click" Height="33"/>
-        <ToggleButton x:Name="LangES" Content="ES" Style="{StaticResource LangToggleStyle}" Click="LangToggle_Click" Height="33"/>
+        <ToggleButton x:Name="LangEN" Content="EN" Style="{StaticResource LangToggleStyle}" Click="LangToggle_Click" Height="33" IsChecked="True"/>
+        <ToggleButton x:Name="LangES" Content="ES" Style="{StaticResource LangToggleStyle}" Click="LangToggle_Click" Height="33" IsChecked="False"/>
       </UniformGrid>
 
       <!-- Fila 3: acciones principales -->
-      <WrapPanel Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center" HorizontalAlignment="Center">
+      <WrapPanel Grid.Row="2" Margin="0,8,0,0" VerticalAlignment="Center" HorizontalAlignment="Center" Orientation="Horizontal" >
         <Button x:Name="BtnCapture" MinWidth="190" Height="33" Style="{StaticResource PrimaryButtonStyle}">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7C0;" Margin="0,0,8,0"/>
             <TextBlock Text="Capture"/>
           </StackPanel>
         </Button>
+        <ProgressBar x:Name="CaptureProgress" Width="120" Height="6" Margin="10,0,0,0" IsIndeterminate="True" Visibility="Collapsed"/>
         <Button x:Name="BtnAnalyze" MinWidth="210" Height="33" Style="{StaticResource PrimaryButtonStyle}">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE721;" Margin="0,0,8,0"/>
