@@ -34,9 +34,8 @@ public partial class MainWindow
                 capBtn.Click += Capture_RunFlow_Click;
             }
 
-            // Start auto-extraction timer
-            _autoExtractTimer.Tick += AutoExtractTimer_Tick;
-            _autoExtractTimer.Start();
+            // Auto-extraction disabled: only extract/respond on Capture
+            try { _autoExtractTimer.Stop(); } catch { }
 
             // Initial render of Q&A history
             RefreshQnAHistoryUi();
