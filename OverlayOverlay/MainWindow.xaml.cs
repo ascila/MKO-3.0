@@ -891,4 +891,31 @@ public partial class MainWindow : Window
         }
         catch { }
     }
+
+    private async void TestAzure_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var key = Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY") ?? string.Empty;
+            var region = Environment.GetEnvironmentVariable("AZURE_SPEECH_REGION") ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(region))
+            {
+                AppendLog("Test Azure: missing AZURE_SPEECH_KEY/REGION");
+                return;
+            }
+            using var http = new System.Net.Http.HttpClient();
+            http.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", key);
+            var url = $"https://{region}.api.cognitive.microsoft.com/sts/v1.0/issueToken";
+            var resp = await http.PostAsync(url, new System.Net.Http.StringContent(string.Empty));
+            var text = await resp.Content.ReadAsStringAsync();
+            if (resp.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(text))
+                AppendLog($"Test Azure: token OK (len={text.Length})");
+            else
+                AppendLog($"Test Azure: failed {(int)resp.StatusCode} {resp.ReasonPhrase}");
+        }
+        catch (Exception ex)
+        {
+            AppendLog("Test Azure error: " + ex.Message);
+        }
+    }
 }

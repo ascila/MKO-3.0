@@ -110,6 +110,7 @@ public class AzureSpeechTranscriber : IDisposable
         var buffer = new byte[3200]; // 100ms @ 16kHz mono 16-bit = 3200 bytes
         var bytesThisSecond = 0;
         var lastTick = DateTime.UtcNow;
+        const int bytesPerSecond = 16000 * 2; // PCM16 mono
         while (!ct.IsCancellationRequested)
         {
             int read = wave16.Read(buffer, 0, buffer.Length);
@@ -117,6 +118,12 @@ public class AzureSpeechTranscriber : IDisposable
             {
                 pushStream.Write(buffer, read);
                 bytesThisSecond += read;
+                // Pace according to audio duration written
+                int delayMs = (int)Math.Round((read * 1000.0) / bytesPerSecond);
+                if (delayMs > 0)
+                {
+                    try { await Task.Delay(delayMs, ct).ConfigureAwait(false); } catch { }
+                }
             }
             else
             {
