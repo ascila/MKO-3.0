@@ -154,8 +154,15 @@
                 BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,8,0,0"
                 Visibility="{Binding IsChecked, ElementName=DebugToggle, Converter={StaticResource BoolToVis}}">
           <StackPanel>
-            <TextBlock Text="Debug Logs" FontWeight="Bold"/>
-            <TextBlock Text="Development logs for troubleshooting." Opacity="0.8" FontSize="12"/>
+            <DockPanel>
+              <StackPanel Orientation="Vertical" DockPanel.Dock="Left">
+                <TextBlock Text="Debug Logs" FontWeight="Bold"/>
+                <TextBlock Text="Development logs for troubleshooting." Opacity="0.8" FontSize="12"/>
+              </StackPanel>
+              <Button x:Name="BtnCopyLogs" DockPanel.Dock="Right" Width="32" Height="28" ToolTip="Copy logs" Click="CopyLogs_Click">
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8C8;" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Button>
+            </DockPanel>
             <Border Background="#1212120F" CornerRadius="6" Padding="8" Margin="0,6,0,0">
               <ScrollViewer Height="140" VerticalScrollBarVisibility="Auto">
                 <TextBox x:Name="DebugLogBox" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" FontFamily="Consolas" MinHeight="120"/>

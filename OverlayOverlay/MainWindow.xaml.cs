@@ -875,4 +875,17 @@ public partial class MainWindow : Window
         }
         catch { }
     }
+
+    private void CopyLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (FindName("DebugLogBox") is TextBox tb && !string.IsNullOrWhiteSpace(tb.Text))
+            {
+                Clipboard.SetText(tb.Text);
+                AppendLog("Logs copied to clipboard");
+            }
+        }
+        catch { }
+    }
 }

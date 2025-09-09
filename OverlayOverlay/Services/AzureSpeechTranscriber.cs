@@ -14,7 +14,6 @@ public class AzureSpeechTranscriber : IDisposable
     private readonly string _key;
     private readonly string _region;
     private SpeechRecognizer? _recognizer;
-    private TranslationRecognizer? _translator;
     private PushAudioInputStream? _pushStream;
     private AudioConfig? _audioConfig;
     private CancellationTokenSource? _cts;
@@ -28,23 +27,22 @@ public class AzureSpeechTranscriber : IDisposable
         _region = region;
     }
 
-    // language: target language for translation (e.g., "en-US" or "es-ES").
+    // language: preferred BCP-47 (e.g., "en-US" or "es-ES").
     // Source language is auto-detected between EN/ES for robustness in interviews.
     public async Task StartAsync(IWaveProvider sourceProvider, string language, CancellationToken cancellationToken = default)
     {
-        if (_recognizer != null || _translator != null) return;
+        if (_recognizer != null) return;
 
         // Target language normalization for translation map (Azure expects BCP-47 but translations dictionary uses short codes)
         var targetLangBcp = string.IsNullOrWhiteSpace(language) ? "en-US" : language;
         var targetShort = MapToShortLanguage(targetLangBcp); // "en" or "es"
 
-        // Azure Speech Translation config
-        var tconfig = SpeechTranslationConfig.FromSubscription(_key, _region);
-        tconfig.SpeechRecognitionLanguage = "en-US"; // placeholder; actual source auto-detect below
-        tconfig.AddTargetLanguage(targetShort);
+        // Azure Speech config (standard transcription)
+        var sconfig = SpeechConfig.FromSubscription(_key, _region);
+        sconfig.SpeechRecognitionLanguage = "en-US"; // placeholder; actual source auto-detect below
         // Optional: tweak silence timeouts for responsiveness
-        tconfig.SetProperty(PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "2000");
-        tconfig.SetProperty(PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "500");
+        sconfig.SetProperty(PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "2000");
+        sconfig.SetProperty(PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "500");
 
         // Auto-detect source between EN/ES (extendable)
         var autoDetect = AutoDetectSourceLanguageConfig.FromLanguages(new[] { "en-US", "es-ES" });
@@ -54,26 +52,26 @@ public class AzureSpeechTranscriber : IDisposable
         _pushStream = AudioInputStream.CreatePushStream(format);
         _audioConfig = AudioConfig.FromStreamInput(_pushStream);
 
-        _translator = new TranslationRecognizer(tconfig, autoDetect, _audioConfig);
+        _recognizer = new SpeechRecognizer(sconfig, autoDetect, _audioConfig);
 
-        _translator.Recognizing += (_, e) =>
+        _recognizer.Recognizing += (_, e) =>
         {
-            if (e.Result.Reason == ResultReason.TranslatingSpeech)
+            if (e.Result.Reason == ResultReason.RecognizingSpeech)
             {
-                if (e.Result.Translations.TryGetValue(targetShort, out var text) && !string.IsNullOrWhiteSpace(text))
-                    PartialTranscription?.Invoke(text);
+                var text = e.Result.Text;
+                if (!string.IsNullOrWhiteSpace(text)) PartialTranscription?.Invoke(text);
             }
         };
-        _translator.Recognized += (_, e) =>
+        _recognizer.Recognized += (_, e) =>
         {
-            if (e.Result.Reason == ResultReason.TranslatedSpeech)
+            if (e.Result.Reason == ResultReason.RecognizedSpeech)
             {
-                if (e.Result.Translations.TryGetValue(targetShort, out var text) && !string.IsNullOrWhiteSpace(text))
-                    FinalTranscription?.Invoke(text);
+                var text = e.Result.Text;
+                if (!string.IsNullOrWhiteSpace(text)) FinalTranscription?.Invoke(text);
             }
         };
 
-        await _translator.StartContinuousRecognitionAsync().ConfigureAwait(false);
+        await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _ = Task.Run(() => PumpAudioAsync(sourceProvider, _pushStream!, _cts.Token));
@@ -110,12 +108,6 @@ public class AzureSpeechTranscriber : IDisposable
     public async Task StopAsync()
     {
         try { _cts?.Cancel(); } catch { }
-        if (_translator != null)
-        {
-            try { await _translator.StopContinuousRecognitionAsync().ConfigureAwait(false); } catch { }
-            _translator.Dispose();
-            _translator = null;
-        }
         if (_recognizer != null)
         {
             try { await _recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false); } catch { }
@@ -132,7 +124,6 @@ public class AzureSpeechTranscriber : IDisposable
         try { _cts?.Cancel(); } catch { }
         _cts?.Dispose();
         _recognizer?.Dispose();
-        _translator?.Dispose();
         _audioConfig?.Dispose();
     }
 
