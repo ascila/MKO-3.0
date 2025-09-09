@@ -20,6 +20,10 @@ public class AzureSpeechTranscriber : IDisposable
     private DateTime? _speechStartUtc;
     private DateTime? _speechEndUtc;
     private bool _firstPartialReported;
+    private string _lastPartial = string.Empty;
+    private string _lastFinalEmitted = string.Empty;
+    private System.Timers.Timer? _partialDebounce;
+    private const int PartialDebounceMs = 600; // finalize after inactivity
 
     public event Action<string>? PartialTranscription;
     public event Action<string>? FinalTranscription;
@@ -49,6 +53,9 @@ public class AzureSpeechTranscriber : IDisposable
         sconfig.SetProperty(PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, "250");
         // Ask SDK to deliver partials as soon as possible
         try { sconfig.SetProperty(PropertyId.SpeechServiceResponse_StablePartialResultThreshold, "1"); } catch { }
+        // Dictation mode and segmentation by silence (if available)
+        try { sconfig.EnableDictation(); } catch { }
+        try { sconfig.SetProperty(PropertyId.Speech_SegmentationSilenceTimeoutMs, "800"); } catch { }
         try
         {
             var logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "azure-speech-sdk.log");
@@ -76,6 +83,18 @@ public class AzureSpeechTranscriber : IDisposable
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     PartialTranscription?.Invoke(text);
+                    _lastPartial = text;
+                    // Debounce to produce a client-side final if no updates for a short while
+                    try
+                    {
+                        _partialDebounce ??= new System.Timers.Timer(PartialDebounceMs) { AutoReset = false };
+                        _partialDebounce.Stop();
+                        _partialDebounce.Interval = PartialDebounceMs;
+                        _partialDebounce.Elapsed -= OnPartialDebounceElapsed;
+                        _partialDebounce.Elapsed += OnPartialDebounceElapsed;
+                        _partialDebounce.Start();
+                    }
+                    catch { }
                     if (!_firstPartialReported && _speechStartUtc.HasValue)
                     {
                         var ms = (int)(DateTime.UtcNow - _speechStartUtc.Value).TotalMilliseconds;
@@ -95,13 +114,23 @@ public class AzureSpeechTranscriber : IDisposable
             if (e.Result.Reason == ResultReason.RecognizedSpeech)
             {
                 var text = e.Result.Text;
-                if (!string.IsNullOrWhiteSpace(text)) FinalTranscription?.Invoke(text);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    if (!string.Equals(text, _lastFinalEmitted, StringComparison.Ordinal))
+                    {
+                        _lastFinalEmitted = text;
+                        FinalTranscription?.Invoke(text);
+                    }
+                }
                 var now = DateTime.UtcNow;
                 var fromStart = _speechStartUtc.HasValue ? (int)(now - _speechStartUtc.Value).TotalMilliseconds : (int?)null;
                 var fromEnd = _speechEndUtc.HasValue ? (int)(now - _speechEndUtc.Value).TotalMilliseconds : (int?)null;
-                DebugLog?.Invoke($"Recognized: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'" +
-                    (fromStart.HasValue ? $" | latency_start={fromStart}ms" : string.Empty) +
-                    (fromEnd.HasValue ? $" latency_end={fromEnd}ms" : string.Empty));
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    DebugLog?.Invoke($"Recognized: '{(text?.Length > 60 ? text.Substring(0,60)+"..." : text)}'" +
+                        (fromStart.HasValue ? $" | latency_start={fromStart}ms" : string.Empty) +
+                        (fromEnd.HasValue ? $" latency_end={fromEnd}ms" : string.Empty));
+                }
             }
             else if (e.Result.Reason == ResultReason.NoMatch)
             {
@@ -115,7 +144,7 @@ public class AzureSpeechTranscriber : IDisposable
         };
         _recognizer.SessionStarted += (_, __) => DebugLog?.Invoke("SessionStarted");
         _recognizer.SessionStopped += (_, __) => DebugLog?.Invoke("SessionStopped");
-        _recognizer.SpeechStartDetected += (_, __) => { _speechStartUtc = DateTime.UtcNow; _speechEndUtc = null; _firstPartialReported = false; DebugLog?.Invoke("SpeechStartDetected"); };
+        _recognizer.SpeechStartDetected += (_, __) => { _speechStartUtc = DateTime.UtcNow; _speechEndUtc = null; _firstPartialReported = false; _lastPartial = string.Empty; DebugLog?.Invoke("SpeechStartDetected"); };
         _recognizer.SpeechEndDetected += (_, __) => { _speechEndUtc = DateTime.UtcNow; DebugLog?.Invoke("SpeechEndDetected"); };
 
         await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
@@ -172,9 +201,25 @@ public class AzureSpeechTranscriber : IDisposable
         pushStream.Close();
     }
 
+    private void OnPartialDebounceElapsed(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        try
+        {
+            var text = _lastPartial?.Trim();
+            if (!string.IsNullOrWhiteSpace(text) && !string.Equals(text, _lastFinalEmitted, StringComparison.Ordinal))
+            {
+                _lastFinalEmitted = text;
+                DebugLog?.Invoke($"ClientFinalized after {PartialDebounceMs}ms inactivity");
+                FinalTranscription?.Invoke(text);
+            }
+        }
+        catch { }
+    }
+
     public async Task StopAsync()
     {
         try { _cts?.Cancel(); } catch { }
+        try { if (_partialDebounce != null) { _partialDebounce.Stop(); _partialDebounce.Dispose(); _partialDebounce = null; } } catch { }
         if (_recognizer != null)
         {
             try { await _recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false); } catch { }
@@ -190,6 +235,8 @@ public class AzureSpeechTranscriber : IDisposable
     {
         try { _cts?.Cancel(); } catch { }
         _cts?.Dispose();
+        try { _partialDebounce?.Stop(); } catch { }
+        _partialDebounce?.Dispose();
         _recognizer?.Dispose();
         _audioConfig?.Dispose();
     }
