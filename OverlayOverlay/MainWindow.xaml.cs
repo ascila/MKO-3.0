@@ -246,7 +246,8 @@ public partial class MainWindow : Window
             sample = Math.Abs(sample);
             if (sample > max) max = sample;
         }
-        var target = Math.Min(1.0, max);
+        // Apply slight visual trim to avoid constant red
+        var target = Math.Min(1.0, max * 0.8);
         _level = _level * 0.7 + target * 0.3; // suavizado
 
         // alimentar buffer para transcripción cloud
@@ -296,7 +297,7 @@ public partial class MainWindow : Window
             float v = Math.Abs(sample / 32768f);
             if (v > max) max = v;
         }
-        var target = Math.Min(1.0, max);
+        var target = Math.Min(1.0, max * 0.8);
         _levelMic = _levelMic * 0.7 + target * 0.3;
     }
 
@@ -310,7 +311,7 @@ public partial class MainWindow : Window
         if (FindName("SysFill") is Border fill)
         {
             fill.Width = Math.Max(2, width);
-            fill.Background = new SolidColorBrush(_level > 0.6 ? Color.FromRgb(239, 68, 68) : Color.FromRgb(16, 185, 129));
+            fill.Background = new SolidColorBrush(_level > 0.8 ? Color.FromRgb(239, 68, 68) : Color.FromRgb(16, 185, 129));
         }
 
         // Mic level bar
@@ -320,7 +321,7 @@ public partial class MainWindow : Window
         if (FindName("MicFill") is Border mfill)
         {
             mfill.Width = Math.Max(2, widthMic);
-            mfill.Background = new SolidColorBrush(_levelMic > 0.6 ? Color.FromRgb(239, 68, 68) : Color.FromRgb(16, 185, 129));
+            mfill.Background = new SolidColorBrush(_levelMic > 0.8 ? Color.FromRgb(239, 68, 68) : Color.FromRgb(16, 185, 129));
         }
     }
 

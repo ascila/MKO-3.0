@@ -109,12 +109,15 @@ public class AzureSpeechTranscriber : IDisposable
     {
         // Convertir sourceProvider a 16kHz mono 16-bit usando chain de SampleProviders
         var sourceWaveFormat = sourceProvider.WaveFormat;
+        // Build processing chain with gentle gain reduction to avoid hot input
         ISampleProvider sample = sourceProvider.ToSampleProvider();
         if (sourceWaveFormat.Channels == 2)
         {
             sample = new StereoToMonoSampleProvider(sample) { LeftVolume = 0.5f, RightVolume = 0.5f };
         }
-        var resampled = new WdlResamplingSampleProvider(sample, 16000);
+        // Apply a mild gain trim (-2.5 dB approx)
+        var trimmed = new VolumeSampleProvider(sample) { Volume = 0.75f };
+        var resampled = new WdlResamplingSampleProvider(trimmed, 16000);
         var wave16 = new SampleToWaveProvider16(resampled);
 
         var buffer = new byte[3200]; // 100ms @ 16kHz mono 16-bit = 3200 bytes
