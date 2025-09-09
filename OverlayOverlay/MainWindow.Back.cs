@@ -26,6 +26,13 @@ public partial class MainWindow
                 clearBtn.Click += EnhancedClearTranscript_Click;
             }
 
+            // Rewire Capture button to new flow
+            if (FindName("BtnCapture") is Button capBtn)
+            {
+                try { capBtn.Click -= CaptureQuestion_Click; } catch { }
+                capBtn.Click += Capture_RunFlow_Click;
+            }
+
             // Start auto-extraction timer
             _autoExtractTimer.Tick += AutoExtractTimer_Tick;
             _autoExtractTimer.Start();
