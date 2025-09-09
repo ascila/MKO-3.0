@@ -5,8 +5,7 @@
         WindowStyle="None" ResizeMode="CanResizeWithGrip"
         AllowsTransparency="True" Background="#AA000000"
         Topmost="True" ShowInTaskbar="True" WindowStartupLocation="CenterScreen"
-        Loaded="Window_Loaded" MouseDown="Window_MouseDown" LocationChanged="Window_LocationChanged"
-        MouseEnter="Window_MouseEnter" MouseLeave="Window_MouseLeave" MouseMove="Window_MouseMove">
+        Loaded="Window_Loaded" MouseDown="Window_MouseDown" LocationChanged="Window_LocationChanged">
   <Window.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVis"/>
   </Window.Resources>
@@ -133,8 +132,8 @@
 
       <!-- Fila 4: Panels for Last Question and Live Transcription -->
       <StackPanel Grid.Row="3" Margin="0,8,0,0">
-        <!-- Interview Q&A Panel -->
-        <Border Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
+        <!-- Interview Q&A Panel (hidden to avoid duplication; use history below) -->
+        <Border x:Name="InterviewPanel" Visibility="Collapsed" Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
           <StackPanel>
             <DockPanel>
               <StackPanel Orientation="Vertical" DockPanel.Dock="Left">
@@ -218,18 +217,9 @@
             <ComboBox x:Name="MicDeviceCombo" Width="220" SelectionChanged="MicDeviceCombo_SelectionChanged"/>
             <Separator Margin="0,6,0,6"/>
             <CheckBox x:Name="DebugToggle" Content="Show Debug Panel" IsChecked="True"/>
-            <Separator Margin="0,6,0,6"/>
-            <CheckBox x:Name="HideCursorToggle" Content="Hide cursor over overlay" IsChecked="True"/>
           </StackPanel>
         </Border>
       </Popup>
-
-      <!-- Local-only fake cursor (overlayed and excluded from capture) -->
-      <Canvas x:Name="CursorCanvas" IsHitTestVisible="False">
-        <Path x:Name="FakeCursor" Visibility="Collapsed" Fill="White" Stroke="#55000000" StrokeThickness="1"
-              Data="M 0,0 L 0,16 L 4,12 L 8,20 L 10,18 L 6,10 L 12,10 Z"/>
-      </Canvas>
-
     </Grid>
   </Border>
 </Window>

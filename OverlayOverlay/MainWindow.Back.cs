@@ -113,22 +113,24 @@ public partial class MainWindow
             if (!string.IsNullOrWhiteSpace(q) && !string.Equals(q, _lastQuestion, StringComparison.Ordinal))
             {
                 _lastQuestion = q;
-                try { Dispatcher.Invoke(UpdateTranscriptUi); } catch { }
                 AppendLog("Auto-extract: question detected");
                 try
                 {
-                    var item = new QnA
+                    var top = QnAStore.GetHistory().FirstOrDefault();
+                    if (top == null || !string.Equals((top.Question ?? string.Empty).Trim(), q.Trim(), StringComparison.OrdinalIgnoreCase) || !string.IsNullOrWhiteSpace(top.Answer))
                     {
-                        Id = DateTime.UtcNow.Ticks,
-                        Question = q,
-                        Status = "pending",
-                        Language = GetSelectedLanguageCode(),
-                        Source = "auto",
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    };
-                    QnAStore.Add(item);
-                    RefreshQnAHistoryUi();
+                        QnAStore.Add(new QnA
+                        {
+                            Id = DateTime.UtcNow.Ticks,
+                            Question = q,
+                            Status = "pending",
+                            Language = GetSelectedLanguageCode(),
+                            Source = "auto",
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        });
+                        RefreshQnAHistoryUi();
+                    }
                 }
                 catch { }
             }
@@ -167,6 +169,7 @@ public partial class MainWindow
             host.Children.Clear();
             var list = QnAStore.GetHistory().ToList();
             int idx = 1; // Start from Q1 at the top (newest first)
+            bool expandedAnswered = false;
             foreach (var item in list)
             {
                 var exp = new Expander
@@ -191,6 +194,13 @@ public partial class MainWindow
                     Margin = new Thickness(0, 6, 0, 0),
                     Child = exp
                 };
+                // Expand the most recent answered item
+                if (!expandedAnswered && !string.IsNullOrWhiteSpace(item.Answer))
+                {
+                    exp.IsExpanded = true;
+                    expandedAnswered = true;
+                }
+
                 host.Children.Add(card);
                 idx++;
             }

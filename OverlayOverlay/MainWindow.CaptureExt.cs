@@ -24,13 +24,38 @@ public partial class MainWindow
             try { _autoExtractTimer.Stop(); } catch { }
             var ctx = ContextProvider.Get();
             var transcript = _transcript.ToString();
-            if (string.IsNullOrWhiteSpace(transcript) || string.IsNullOrWhiteSpace(ctx.Cv) || string.IsNullOrWhiteSpace(ctx.JobDescription))
-                return;
+            if (string.IsNullOrWhiteSpace(ctx.Cv) || string.IsNullOrWhiteSpace(ctx.JobDescription)) return;
 
-            // Per spec: when pressing Capture, clear unanswered questions and the transcript
+            // Decide question to answer: prefer latest pending from history; fallback to extracting from transcript
+            var latestPending = QnAStore.GetHistory().FirstOrDefault(x => string.Equals(x.Status, "pending", StringComparison.OrdinalIgnoreCase));
+            string questionToAnswer = latestPending?.Question ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(questionToAnswer))
+            {
+                if (string.IsNullOrWhiteSpace(transcript)) return;
+                // Extract from transcript if no pending exists
+                try
+                {
+                    var keyOpenAi = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+                    _questionExtractor ??= new QuestionExtractor(keyOpenAi ?? string.Empty);
+                    AppendLog("AI: extracting interview question (no pending found)...");
+                    var res0 = await _questionExtractor.ExtractAsync(transcript);
+                    if (res0.isQuestion) questionToAnswer = (res0.question ?? string.Empty).Trim();
+                }
+                catch { }
+                if (string.IsNullOrWhiteSpace(questionToAnswer)) return;
+                // Insert as pending so UI shows it
+                var id0 = DateTime.UtcNow.Ticks;
+                var tmp = new QnA { Id = id0, Question = questionToAnswer, Status = "pending", Language = GetSelectedLanguageCode(), Source = "capture", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+                QnAStore.Add(tmp);
+                latestPending = tmp;
+                RefreshQnAHistoryUi();
+            }
+
+            // Per spec: when pressing Capture, clear other unanswered questions and the transcript
             try
             {
-                QnAStore.RemoveWhere(q => !string.Equals(q.Status, "answered", StringComparison.OrdinalIgnoreCase));
+                var keepId = latestPending?.Id ?? -1;
+                QnAStore.RemoveWhere(q => !string.IsNullOrWhiteSpace(q.Question) && !string.Equals(q.Status, "answered", StringComparison.OrdinalIgnoreCase) && q.Id != keepId);
                 RefreshQnAHistoryUi();
             }
             catch { }
@@ -74,29 +99,11 @@ public partial class MainWindow
             }
             catch { }
 
-            // Extract question from the captured transcript (auto-derives contextual keywords from Setup)
-            string question = string.Empty;
-            bool isQuestion = false;
-            try
-            {
-                var keyOpenAi = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-                _questionExtractor ??= new QuestionExtractor(keyOpenAi ?? string.Empty);
-                AppendLog("AI: extracting interview question...");
-                var res = await _questionExtractor.ExtractAsync(transcript);
-                isQuestion = res.isQuestion;
-                question = (res.question ?? string.Empty).Trim();
-                AppendLog("AI: extraction completed");
-            }
-            catch (Exception ex)
-            {
-                AppendLog("AI extraction error: " + ex.Message);
-            }
-
-            if (isQuestion && !string.IsNullOrWhiteSpace(question))
+            if (!string.IsNullOrWhiteSpace(questionToAnswer))
             {
                 // Dedupe: skip if same as most recent
                 var recent = QnAStore.GetHistory().FirstOrDefault();
-                if (recent != null && Normalize(recent.Question) == Normalize(question))
+                if (recent != null && Normalize(recent.Question) == Normalize(questionToAnswer))
                 {
                     AppendLog("Duplicate question ignored (same as latest)");
                 }
@@ -104,10 +111,10 @@ public partial class MainWindow
                 {
                 // Add pending QnA
                 var id = DateTime.UtcNow.Ticks;
-                var item = new QnA
+                var item = latestPending ?? new QnA
                 {
                     Id = id,
-                    Question = question,
+                    Question = questionToAnswer,
                     Status = "pending",
                     Language = GetSelectedLanguageCode(),
                     Source = "capture",
@@ -116,7 +123,7 @@ public partial class MainWindow
                     UpdatedAt = DateTime.UtcNow,
                     QuestionNumber = QnAStore.GetHistory().Count + 1
                 };
-                QnAStore.Add(item);
+                if (latestPending == null) QnAStore.Add(item);
                 _lastQuestion = question;
                 Dispatcher.Invoke(UpdateTranscriptUi);
                 RefreshQnAHistoryUi();
@@ -144,7 +151,7 @@ public partial class MainWindow
                 var answer = (result.Answer ?? string.Empty).Trim();
                 if (!string.IsNullOrWhiteSpace(answer))
                 {
-                    QnAStore.Update(id, q => { q.Answer = answer; q.Status = "answered"; });
+                    QnAStore.Update(item.Id, q => { q.Answer = answer; q.Status = "answered"; });
                     AppendLog("Answer generated (stub)");
                     RefreshQnAHistoryUi();
                     FlashCaptureButton(success: true);

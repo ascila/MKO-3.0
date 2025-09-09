@@ -144,56 +144,7 @@ public partial class MainWindow : Window
             this.Opacity = e.NewValue;
     }
 
-    private void Window_MouseEnter(object sender, MouseEventArgs e)
-    {
-        try
-        {
-            if (FindName("HideCursorToggle") is CheckBox cb && cb.IsChecked == true)
-                Mouse.OverrideCursor = Cursors.None;
-        }
-        catch { }
-    }
-
-    private void Window_MouseLeave(object sender, MouseEventArgs e)
-    {
-        try { Mouse.OverrideCursor = null; } catch { }
-        try { if (FindName("FakeCursor") is System.Windows.Shapes.Path p) p.Visibility = Visibility.Collapsed; } catch { }
-    }
-
-    private void Window_MouseMove(object sender, MouseEventArgs e)
-    {
-        try
-        {
-            var hideLocal = false;
-            if (FindName("HideCursorToggle") is CheckBox cb && cb.IsChecked == true)
-                hideLocal = true;
-
-            if (!hideLocal)
-            {
-                // Ensure system cursor visible and fake one hidden
-                try { Mouse.OverrideCursor = null; } catch { }
-                if (FindName("FakeCursor") is System.Windows.Shapes.Path p1)
-                    p1.Visibility = Visibility.Collapsed;
-                return;
-            }
-
-            // Hide real cursor locally
-            Mouse.OverrideCursor = Cursors.None;
-
-            // Move/show fake cursor (drawn inside our window, thus excluded from capture)
-            var pos = e.GetPosition(this);
-            if (FindName("FakeCursor") is System.Windows.Shapes.Path p && FindName("CursorCanvas") is Canvas canvas)
-            {
-                // Slight offset so the tip aligns to pointer position
-                double left = pos.X + 2;
-                double top = pos.Y + 2;
-                Canvas.SetLeft(p, left);
-                Canvas.SetTop(p, top);
-                p.Visibility = Visibility.Visible;
-            }
-        }
-        catch { }
-    }
+    // Cursor-related handlers removed per user request
 
     private void ThemeRadio_Checked(object sender, RoutedEventArgs e)
     {
