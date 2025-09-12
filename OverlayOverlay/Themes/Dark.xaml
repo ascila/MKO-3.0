@@ -180,4 +180,41 @@
   <Style TargetType="Slider">
     <Setter Property="Margin" Value="4"/>
   </Style>
+
+  <!-- Slimmer scrollbar across the app -->
+  <Style TargetType="ScrollBar">
+    <Setter Property="Width" Value="8"/>
+    <Setter Property="Background" Value="#00000000"/>
+  </Style>
+
+  <!-- Expander without built-in toggle glyph; header renders as-is -->
+  <Style x:Key="QnACardExpanderStyle" TargetType="{x:Type Expander}">
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type Expander}">
+          <Border Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="8"
+                  Padding="{TemplateBinding Padding}">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+              <!-- Header area: provided by Header content (we add our own expand button) -->
+              <ContentPresenter Grid.Row="0" ContentSource="Header"/>
+              <!-- Body toggled by IsExpanded -->
+              <ContentPresenter Grid.Row="1" x:Name="PART_Content" ContentSource="Content" Visibility="Collapsed"/>
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsExpanded" Value="True">
+              <Setter TargetName="PART_Content" Property="Visibility" Value="Visible"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 </ResourceDictionary>

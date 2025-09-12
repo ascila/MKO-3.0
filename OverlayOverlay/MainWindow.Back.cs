@@ -8,6 +8,7 @@ using System.Linq;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Interop;
+using System.Windows.Controls.Primitives;
 
 namespace OverlayOverlay;
 
@@ -55,6 +56,52 @@ public partial class MainWindow
                 }
             }
             catch { }
+        }
+        catch { }
+        // Ensure initial section reflow after first layout
+        try { AdjustSectionHeightsByWindow(); } catch { }
+    }
+
+    // Dynamically adjust Q&A panel height:
+    // - Compact (160) when no cards expanded
+    // - Grow to show the expanded card plus at least two collapsed cards,
+    //   capped at 60% of the window height
+    private void AdjustQnAPanelHeight()
+    {
+        try
+        {
+            if (FindName("QnAScroll") is not ScrollViewer sc) return;
+            if (FindName("QnAHistoryItems") is not StackPanel host) return;
+
+            // If there is no content, keep compact
+            if (host.Children.Count == 0)
+            {
+                sc.Height = double.NaN; // stretch to row height
+                return;
+            }
+
+            // Find expanded card (Border -> Expander)
+            var pairs = host.Children.OfType<Border>()
+                          .Select(b => new { Border = b, Expander = b.Child as Expander })
+                          .ToList();
+            var expanded = pairs.FirstOrDefault(p => (p.Expander?.IsExpanded ?? false));
+            // Ensure layout is current so ActualHeight is valid
+            host.UpdateLayout();
+
+            // Use full row height; Expander row is already sized by layout logic
+
+            if (expanded == null)
+            {
+                // Let the ScrollViewer fill its Grid row (60% assigned elsewhere)
+                sc.Height = double.NaN;
+                return;
+            }
+
+            // Expanded present: keep section at base target height and bring expanded into view
+            int idxExp = pairs.FindIndex(p => ReferenceEquals(p, expanded));
+            if (idxExp < 0) idxExp = 0;
+            sc.Height = double.NaN; // fill row; just scroll to the expanded card
+            try { expanded.Border.BringIntoView(); } catch { }
         }
         catch { }
     }
@@ -216,7 +263,6 @@ public partial class MainWindow
             var list = QnAStore.GetHistory().ToList();
             int idx = 1; // Start from Q1 at the top (newest first)
             bool expandedAnswered = false;
-            bool regenAdded = false;
             foreach (var item in list)
             {
                 var exp = new Expander
@@ -225,45 +271,133 @@ public partial class MainWindow
                     Margin = new Thickness(0, 4, 0, 0),
                     HorizontalAlignment = HorizontalAlignment.Stretch
                 };
-
-                // Header: Question text (bold, larger) + Regenerate on the right for latest answered
-                // Use DockPanel with LastChildFill so the question fills and the button docks right
-                var headerDock = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 0, 0, 8), HorizontalAlignment = HorizontalAlignment.Stretch };
-                if (!regenAdded && !string.IsNullOrWhiteSpace(item.Answer))
+                try
                 {
-                    var regenBtn = new Button
-                    {
-                        Width = 28,
-                        Height = 28,
-                        Margin = new Thickness(0),
-                        ToolTip = "Regenerate answer",
-                        HorizontalAlignment = HorizontalAlignment.Right,
-                        VerticalAlignment = VerticalAlignment.Center
-                    };
-                    regenBtn.Tag = item.Id;
-                    regenBtn.Click += RegenerateLatest_Click;
-                    var icon = new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), Text = "\uE72C", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-                    regenBtn.Content = icon;
-                    DockPanel.SetDock(regenBtn, Dock.Right);
-                    headerDock.Children.Add(regenBtn);
-                    regenAdded = true;
+                    if (Application.Current.Resources["QnACardExpanderStyle"] is Style expStyle)
+                        exp.Style = expStyle;
                 }
+                catch { }
+
+                // Header layout: [expand square] [title (wrap)] [regenerate square]
+                // Tighter header spacing to make cards less bulky
+                var headerGrid = new Grid { Margin = new Thickness(0, 0, 0, 4), HorizontalAlignment = HorizontalAlignment.Stretch };
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                // Expand square button (toggles expander)
+                var expandBtn = new Button
+                {
+                    Width = 28,
+                    Height = 28,
+                    Margin = new Thickness(0),
+                    ToolTip = "Expand/collapse",
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                var expIcon = new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), Text = "\uE70D", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // \uE70D = ChevronDown; rotate when expanded
+                var expRotate = new RotateTransform(0);
+                expIcon.RenderTransformOrigin = new Point(0.5, 0.5);
+                expIcon.RenderTransform = expRotate;
+                expandBtn.Content = expIcon;
+                expandBtn.Click += (_, __) => { try { exp.IsExpanded = !exp.IsExpanded; } catch { } };
+                Grid.SetColumn(expandBtn, 0);
+                headerGrid.Children.Add(expandBtn);
+
+                // Question title (wrap, centered vertically)
                 var questionHeader = new TextBlock
                 {
                     Text = item.Question,
                     TextWrapping = TextWrapping.Wrap,
                     FontWeight = FontWeights.Bold,
-                    FontSize = 16
+                    FontSize = 16,
+                    Margin = new Thickness(8, 0, 8, 0),
+                    VerticalAlignment = VerticalAlignment.Center
                 };
-                headerDock.Children.Add(questionHeader);
-                exp.Header = headerDock;
+                Grid.SetColumn(questionHeader, 1);
+                headerGrid.Children.Add(questionHeader);
 
-                // Content: answer text and bottom actions
+                // Regenerate button: always present; enabled only if answered
+                var regenBtn = new Button
+                {
+                    Width = 28,
+                    Height = 28,
+                    Margin = new Thickness(0),
+                    ToolTip = "Regenerate answer",
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    IsEnabled = !string.IsNullOrWhiteSpace(item.Answer)
+                };
+                regenBtn.Tag = item.Id;
+                regenBtn.Click += RegenerateLatest_Click;
+                var regenIcon = new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), Text = "\uE72C", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+                regenBtn.Content = regenIcon;
+                Grid.SetColumn(regenBtn, 2);
+                headerGrid.Children.Add(regenBtn);
+
+                // Bind icon rotation to expander state via events
+                exp.Expanded += (_, __) =>
+                {
+                    try { expRotate.Angle = 180; } catch { }
+                    // Collapse other expanders to ensure only one is expanded
+                    try
+                    {
+                        if (FindName("QnAHistoryItems") is StackPanel host2)
+                        {
+                            foreach (var b in host2.Children.OfType<Border>())
+                            {
+                                if (b.Child is Expander other && !ReferenceEquals(other, exp))
+                                    other.IsExpanded = false;
+                            }
+                        }
+                    }
+                    catch { }
+                    try { exp.BringIntoView(); } catch { }
+                    try { Dispatcher.BeginInvoke(new Action(AdjustQnAPanelHeight), DispatcherPriority.Background); } catch { }
+                };
+                exp.Collapsed += (_, __) =>
+                {
+                    try { expRotate.Angle = 0; } catch { }
+                    try { Dispatcher.BeginInvoke(new Action(AdjustQnAPanelHeight), DispatcherPriority.Background); } catch { }
+                };
+
+                exp.Header = headerGrid;
+                // Tidy default header site visuals
+                exp.Loaded += (_, __) =>
+                {
+                    try
+                    {
+                        exp.ApplyTemplate();
+                        if (exp.Template.FindName("HeaderSite", exp) is ToggleButton hb)
+                        {
+                            hb.Padding = new Thickness(0);
+                            hb.Margin = new Thickness(0);
+                            hb.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+                            hb.BorderThickness = new Thickness(0);
+                            hb.Background = Brushes.Transparent;
+                        }
+                    }
+                    catch { }
+                };
+
+                // Content: answer inside a subtle bordered box + bottom actions
                 var content = new StackPanel();
+                var ansBox = new Border
+                {
+                    Background = (Brush)new BrushConverter().ConvertFromString("#1212120F")!,
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(12),
+                    BorderBrush = (Brush)new BrushConverter().ConvertFromString("#E5E7EB")!,
+                    BorderThickness = new Thickness(1),
+                    Margin = new Thickness(0, 0, 0, 4)
+                };
                 var ans = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 14, Text = string.IsNullOrWhiteSpace(item.Answer) ? "(pending)" : item.Answer };
-                content.Children.Add(ans);
+                ansBox.Child = ans;
+                content.Children.Add(ansBox);
 
-                var bottomBar = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+                // Slightly reduce gap between answer box and bottom actions
+                var bottomBar = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
                 // Copy button left with label
                 var copyBtn = new Button { Height = 28, Padding = new Thickness(8, 2, 8, 2), ToolTip = "Copy question and answer" };
                 copyBtn.Tag = item.Id;
@@ -285,7 +419,8 @@ public partial class MainWindow
                     BorderBrush = (Brush)new BrushConverter().ConvertFromString("#E5E7EB")!,
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(10),
-                    Padding = new Thickness(12),
+                    // Tighter card padding (top/bottom) while preserving readability
+                    Padding = new Thickness(8),
                     Margin = new Thickness(0, 6, 0, 0),
                     Child = exp
                 };
@@ -299,6 +434,16 @@ public partial class MainWindow
                 host.Children.Add(card);
                 idx++;
             }
+            // After rendering list, adjust panel height once and log scroll metrics
+            try
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try { AdjustQnAPanelHeight(); } catch { }
+                    try { LogScrollMetrics("postBuild:QnA", FindName("QnAScroll") as ScrollViewer); } catch { }
+                }), DispatcherPriority.Background);
+            }
+            catch { }
         }
         catch { }
     }

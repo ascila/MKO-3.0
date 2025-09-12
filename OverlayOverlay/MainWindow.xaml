@@ -1,7 +1,7 @@
 <Window x:Class="OverlayOverlay.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Overlay" Width="620" SizeToContent="Height"
+        Title="Overlay" Width="620" SizeToContent="Manual"
         WindowStyle="None" ResizeMode="CanResizeWithGrip"
         AllowsTransparency="True" Background="#AA000000"
         Topmost="True" ShowInTaskbar="True" WindowStartupLocation="CenterScreen"
@@ -40,6 +40,13 @@
           <Border x:Name="MicLevelBar" Width="48" Height="8" Margin="6,0,0,0" Background="#202020" CornerRadius="4">
             <Border x:Name="MicFill" Width="0" Height="8" Background="#10B981" CornerRadius="4"/>
           </Border>
+          <!-- Nudge buttons: move window by one screen third -->
+          <Button x:Name="BtnNudgeLeft" Width="36" Height="28" Margin="12,0,0,0" ToolTip="Move left by one third" Click="NudgeLeft_Click">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE76B;" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+          </Button>
+          <Button x:Name="BtnNudgeRight" Width="36" Height="28" Margin="6,0,0,0" ToolTip="Move right by one third" Click="NudgeRight_Click">
+            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE76C;" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+          </Button>
           <!-- (Idioma movido a segunda fila) -->
         </StackPanel>
 
@@ -122,16 +129,16 @@
             <TextBlock Text="Follow-up"/>
           </StackPanel>
         </Button>
-        <Button x:Name="BtnRegenerate" MinWidth="140" Height="33" Margin="8,0,0,0" Click="Regenerate_Click">
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72C;" Margin="0,0,8,0"/>
-            <TextBlock Text="Regenerate"/>
-          </StackPanel>
-        </Button>
+        <!-- Removed legacy Regenerate button in header -->
       </WrapPanel>
 
       <!-- Fila 4: Panels for Last Question and Live Transcription -->
-      <StackPanel Grid.Row="3" Margin="0,8,0,0">
+      <Grid x:Name="SectionsHost" Grid.Row="3" Margin="0,8,0,0">
+        <Grid.RowDefinitions>
+          <RowDefinition x:Name="RowQnA" Height="3*"/>
+          <RowDefinition x:Name="RowLive" Height="*"/>
+          <RowDefinition x:Name="RowDebug" Height="*"/>
+        </Grid.RowDefinitions>
         <!-- Interview Q&A Panel (hidden to avoid duplication; use history below) -->
         <Border x:Name="InterviewPanel" Visibility="Collapsed" Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
           <StackPanel>
@@ -150,62 +157,182 @@
           </StackPanel>
         </Border>
 
-        <!-- Q&A History (accordion style) -->
-        <Border Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
-          <StackPanel>
-            <DockPanel>
-              <StackPanel Orientation="Vertical" DockPanel.Dock="Left">
+        <!-- Q&A History (collapsible) -->
+        <Expander x:Name="QnASection" Grid.Row="0" Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1"
+                  Padding="10" Margin="0,0,0,8" IsExpanded="True"
+                  Style="{StaticResource QnACardExpanderStyle}">
+          <Expander.Header>
+            <Grid x:Name="QnAHeader" Margin="0,0,0,6">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="28"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <!-- Toggle -->
+              <ToggleButton Width="28" Height="28" Grid.Column="0"
+                            Style="{StaticResource BaseButtonStyle}"
+                            Margin="0"
+                            Padding="0"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=Expander}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                <ToggleButton.Resources>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                    <Setter Property="RenderTransform">
+                      <Setter.Value>
+                        <RotateTransform Angle="0"/>
+                      </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                        <Setter Property="RenderTransform">
+                          <Setter.Value>
+                            <RotateTransform Angle="180"/>
+                          </Setter.Value>
+                        </Setter>
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </ToggleButton.Resources>
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE70D;" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </ToggleButton>
+              <!-- Title -->
+              <StackPanel Grid.Column="1" Orientation="Vertical" Margin="8,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="Q&amp;A History" FontWeight="Bold"/>
-                <TextBlock Text="Newest first. Click to expand answers." Opacity="0.8" FontSize="12"/>
               </StackPanel>
-              <Button x:Name="BtnCopyAllQuestions" DockPanel.Dock="Right" Width="32" Height="28" Margin="0" VerticalAlignment="Center" HorizontalAlignment="Right" ToolTip="Copy all questions" Click="CopyAllQuestions_Click">
+              <!-- Action right -->
+              <Button x:Name="BtnCopyAllQuestions" Grid.Column="2" Width="32" Height="28" Margin="0" VerticalAlignment="Center" HorizontalAlignment="Right" ToolTip="Copy all questions" Click="CopyAllQuestions_Click">
                 <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8C8;" HorizontalAlignment="Center" VerticalAlignment="Center"/>
               </Button>
-            </DockPanel>
-            <ScrollViewer Height="160" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+            </Grid>
+          </Expander.Header>
+          <Grid>
+            <ScrollViewer x:Name="QnAScroll" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0" VerticalAlignment="Stretch" PanningMode="VerticalFirst" CanContentScroll="False">
               <StackPanel x:Name="QnAHistoryItems" />
             </ScrollViewer>
-          </StackPanel>
-        </Border>
+          </Grid>
+          </Expander>
 
-        <!-- Live Transcription Panel -->
-        <Border Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10">
-          <StackPanel>
-            <TextBlock Text="Live Transcription" FontWeight="Bold"/>
-            <TextBlock Text="Your real-time interview transcription." Opacity="0.8" FontSize="12"/>
+        <!-- Live Transcription Panel (collapsible) -->
+        <Expander x:Name="LiveSection" Grid.Row="1" Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1"
+                  Padding="10" IsExpanded="True"
+                  Style="{StaticResource QnACardExpanderStyle}">
+          <Expander.Header>
+            <Grid x:Name="LiveHeader" Margin="0,0,0,6">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="28"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <ToggleButton Width="28" Height="28" Grid.Column="0"
+                             Style="{StaticResource BaseButtonStyle}"
+                             Margin="0"
+                             Padding="0"
+                             HorizontalAlignment="Left"
+                             VerticalAlignment="Center"
+                             IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=Expander}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                 <ToggleButton.Resources>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                    <Setter Property="RenderTransform">
+                      <Setter.Value>
+                        <RotateTransform Angle="0"/>
+                      </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                        <Setter Property="RenderTransform">
+                          <Setter.Value>
+                            <RotateTransform Angle="180"/>
+                          </Setter.Value>
+                        </Setter>
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </ToggleButton.Resources>
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE70D;" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </ToggleButton>
+              <StackPanel Grid.Column="1" Orientation="Vertical" Margin="8,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="Live Transcription" FontWeight="Bold"/>
+              </StackPanel>
+              <!-- Action right: copy all transcription -->
+              <Button x:Name="BtnCopyLive" Grid.Column="2" Width="32" Height="28" Margin="0" VerticalAlignment="Center" HorizontalAlignment="Right" ToolTip="Copy transcription" Click="CopyLive_Click">
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8C8;" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Button>
+            </Grid>
+          </Expander.Header>
+          <Grid>
             <Border Background="#1212120F" CornerRadius="6" Padding="8" Margin="0,6,0,0">
-              <ScrollViewer Height="140" VerticalScrollBarVisibility="Auto">
+              <ScrollViewer x:Name="LiveScroll" VerticalScrollBarVisibility="Auto" VerticalAlignment="Stretch" PanningMode="VerticalFirst" CanContentScroll="False">
                 <TextBlock x:Name="LiveTranscriptBox" Text="Waiting for audio..." TextWrapping="Wrap"/>
               </ScrollViewer>
             </Border>
-          </StackPanel>
-        </Border>
+          </Grid>
+        </Expander>
 
-        <!-- Debug Log Panel (toggleable) -->
-        <Border Background="{DynamicResource BgBrush}"
-                BorderBrush="#33000000" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,8,0,0"
-                Visibility="{Binding IsChecked, ElementName=DebugToggle, Converter={StaticResource BoolToVis}}">
-          <StackPanel>
-            <DockPanel>
-              <StackPanel Orientation="Vertical" DockPanel.Dock="Left">
+        <!-- Debug Log Panel (toggleable + collapsible) -->
+        <Expander x:Name="DebugSection" Grid.Row="2" Background="{DynamicResource BgBrush}" BorderBrush="#33000000" BorderThickness="1"
+                  Padding="10" Margin="0,8,0,0"
+                  Visibility="{Binding IsChecked, ElementName=DebugToggle, Converter={StaticResource BoolToVis}}"
+                  IsExpanded="True" Style="{StaticResource QnACardExpanderStyle}">
+          <Expander.Header>
+            <Grid x:Name="DebugHeader" Margin="0,0,0,6">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="28"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <ToggleButton Width="28" Height="28" Grid.Column="0"
+                            Style="{StaticResource BaseButtonStyle}"
+                            Margin="0"
+                            Padding="0"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=Expander}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                <ToggleButton.Resources>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                    <Setter Property="RenderTransform">
+                      <Setter.Value>
+                        <RotateTransform Angle="0"/>
+                      </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                        <Setter Property="RenderTransform">
+                          <Setter.Value>
+                            <RotateTransform Angle="180"/>
+                          </Setter.Value>
+                        </Setter>
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </ToggleButton.Resources>
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE70D;" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </ToggleButton>
+              <StackPanel Grid.Column="1" Orientation="Vertical" Margin="8,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="Debug Logs" FontWeight="Bold"/>
-                <TextBlock Text="Development logs for troubleshooting." Opacity="0.8" FontSize="12"/>
               </StackPanel>
-              <Button x:Name="BtnCopyLogs" DockPanel.Dock="Right" Width="32" Height="28" ToolTip="Copy logs" Click="CopyLogs_Click">
+              <Button x:Name="BtnCopyLogs" Grid.Column="2" Width="32" Height="28" VerticalAlignment="Center" ToolTip="Copy logs" Click="CopyLogs_Click">
                 <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8C8;" HorizontalAlignment="Center" VerticalAlignment="Center"/>
               </Button>
-              <Button x:Name="BtnTestAzure" DockPanel.Dock="Right" Width="32" Height="28" Margin="6,0,0,0" ToolTip="Test Azure auth" Click="TestAzure_Click">
+              <Button x:Name="BtnTestAzure" Grid.Column="3" Width="32" Height="28" Margin="6,0,0,0" VerticalAlignment="Center" ToolTip="Test Azure auth" Click="TestAzure_Click">
                 <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE774;" HorizontalAlignment="Center" VerticalAlignment="Center"/>
               </Button>
-            </DockPanel>
+            </Grid>
+          </Expander.Header>
+          <Grid>
             <Border Background="#1212120F" CornerRadius="6" Padding="8" Margin="0,6,0,0">
-              <ScrollViewer Height="140" VerticalScrollBarVisibility="Auto">
-                <TextBox x:Name="DebugLogBox" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" FontFamily="Consolas" MinHeight="120"/>
+              <ScrollViewer x:Name="DebugScroll" VerticalScrollBarVisibility="Auto" VerticalAlignment="Stretch" PanningMode="VerticalFirst" CanContentScroll="False">
+                <TextBox x:Name="DebugLogBox" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" FontFamily="Consolas" MinHeight="120"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
               </ScrollViewer>
             </Border>
-          </StackPanel>
-        </Border>
-      </StackPanel>
+          </Grid>
+        </Expander>
+      </Grid>
 
       <!-- MenÃº de configuraciÃ³n -->
       <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" Opened="SettingsPopup_Opened">

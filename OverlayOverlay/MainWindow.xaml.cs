@@ -13,6 +13,7 @@ using NAudio.Wave;
 using System.Windows.Media.Animation;
 using System.Diagnostics;
 using System.Windows.Media.Animation;
+using System.Runtime.InteropServices;
 
 namespace OverlayOverlay;
 
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
     private bool _asrOn;
     private string _partialLine = string.Empty;
     private Storyboard? _captureSb;
+    private bool _measureOnly = false; // when true, only [MEASURE] logs are written
     
 
     public MainWindow()
@@ -65,6 +67,9 @@ public partial class MainWindow : Window
     {
         try
         {
+            // Filter non-measure logs if measure-only mode is active
+            if (_measureOnly && !(message?.StartsWith("[MEASURE]") ?? false)) return;
+
             Dispatcher.BeginInvoke(() =>
             {
                 if (FindName("DebugLogBox") is TextBox tb)
@@ -89,10 +94,25 @@ public partial class MainWindow : Window
         catch { /* Ignorar si no soportado */ }
     }
 
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        // Prevent maximize state (avoid Windows snap-to-maximize)
+        try
+        {
+            if (this.WindowState == WindowState.Maximized)
+            {
+                this.WindowState = WindowState.Normal;
+            }
+        }
+        catch { }
+    }
+
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
         // Inicializar opacidad desde slider
         this.Opacity = OpacitySlider.Value;
+        try { this.Top = 0; this.Height = SystemParameters.WorkArea.Height; } catch { }
         // Tema por defecto
         if (FindName("ThemeLight") is RadioButton rb) rb.IsChecked = true;
         // Mantener pegado arriba
@@ -128,6 +148,261 @@ public partial class MainWindow : Window
         // Estado inicial del botÃ³n Start: verde (stopped)
         try { if (FindName("BtnStart") is Button bs) { bs.Background = new SolidColorBrush(Color.FromRgb(16, 185, 129)); bs.Foreground = Brushes.White; } } catch { }
         AppendLog("UI loaded");
+        // Layout sizing hooks
+        try { this.SizeChanged += (_, __) => AdjustSectionHeightsByWindow(); } catch { }
+        try
+        {
+            if (FindName("DebugToggle") is CheckBox dbg)
+            {
+                dbg.Checked += (_, __) => AdjustSectionHeightsByWindow();
+                dbg.Unchecked += (_, __) => AdjustSectionHeightsByWindow();
+            }
+        }
+        catch { }
+        // No dependemos de colapsar/expandir secciones para el reparto 60/20/20
+        AdjustSectionHeightsByWindow();
+
+        // Ensure wheel scrolling works even with hidden scrollbars
+        try
+        {
+            // Reflow rows when sections are expanded/collapsed
+            WireSectionExpanders();
+            AttachWheelScroll(FindName("QnAScroll") as ScrollViewer);
+            AttachWheelScroll(FindName("LiveScroll") as ScrollViewer);
+            AttachWheelScroll(FindName("DebugScroll") as ScrollViewer);
+            // Capture preview wheel globally to route to the nearest ScrollViewer under mouse
+            this.AddHandler(UIElement.PreviewMouseWheelEvent, new MouseWheelEventHandler(Global_PreviewMouseWheel), true);
+
+            // Log initial metrics after first layout pass
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                LogScrollMetrics("init:QnA", FindName("QnAScroll") as ScrollViewer);
+                LogScrollMetrics("init:Live", FindName("LiveScroll") as ScrollViewer);
+                LogScrollMetrics("init:Debug", FindName("DebugScroll") as ScrollViewer);
+            }), DispatcherPriority.Background);
+        }
+        catch { }
+    }
+
+    private void WireSectionExpanders()
+    {
+        try
+        {
+            void hook(string tag, Expander? ex)
+            {
+                if (ex == null) return;
+                ex.Expanded += (_, __) => { try { AdjustSectionHeightsByWindow(); AdjustWindowHeightForSections(); MeasureAndLogSection(tag); } catch { } };
+                ex.Collapsed += (_, __) => { try { AdjustSectionHeightsByWindow(); AdjustWindowHeightForSections(); MeasureAndLogSection(tag); } catch { } };
+            }
+            hook("QnA",  FindName("QnASection") as Expander);
+            hook("Live", FindName("LiveSection") as Expander);
+            hook("Debug",FindName("DebugSection") as Expander);
+        }
+        catch { }
+    }
+
+    // Enter measure-only mode, clear log, and write layout metrics for the given section
+    private void MeasureAndLogSection(string tag)
+    {
+        try
+        {
+            // Enable measure-only output and clear previous logs as requested
+            _measureOnly = true;
+            Dispatcher.Invoke(() => { if (FindName("DebugLogBox") is TextBox tb) tb.Clear(); });
+
+            if (tag == "QnA")
+            {
+                LogMeasureForSection(
+                    "QnA",
+                    FindName("RowQnA") as RowDefinition,
+                    FindName("QnAHeader") as FrameworkElement,
+                    headerGrid: FindName("QnAHeader") as FrameworkElement,
+                    leftToggle: FindChild<ToggleButton>(FindName("QnAHeader") as DependencyObject),
+                    title: FindBoldText(FindName("QnAHeader") as DependencyObject),
+                    subtitle: FindNonBoldText(FindName("QnAHeader") as DependencyObject),
+                    rightBtns: new FrameworkElement?[] { FindName("BtnCopyAllQuestions") as FrameworkElement }
+                );
+            }
+            else if (tag == "Live")
+            {
+                LogMeasureForSection(
+                    "Live",
+                    FindName("RowLive") as RowDefinition,
+                    FindName("LiveHeader") as FrameworkElement,
+                    headerGrid: FindName("LiveHeader") as FrameworkElement,
+                    leftToggle: FindChild<ToggleButton>(FindName("LiveHeader") as DependencyObject),
+                    title: FindBoldText(FindName("LiveHeader") as DependencyObject),
+                    subtitle: FindNonBoldText(FindName("LiveHeader") as DependencyObject),
+                    rightBtns: Array.Empty<FrameworkElement?>()
+                );
+            }
+            else if (tag == "Debug")
+            {
+                // Only log Debug if the panel is visible
+                bool dbgVisible = (FindName("DebugToggle") as CheckBox)?.IsChecked == true;
+                if (dbgVisible)
+                {
+                    LogMeasureForSection(
+                        "Debug",
+                        FindName("RowDebug") as RowDefinition,
+                        FindName("DebugHeader") as FrameworkElement,
+                        headerGrid: FindName("DebugHeader") as FrameworkElement,
+                        leftToggle: FindChild<ToggleButton>(FindName("DebugHeader") as DependencyObject),
+                        title: FindBoldText(FindName("DebugHeader") as DependencyObject),
+                        subtitle: FindNonBoldText(FindName("DebugHeader") as DependencyObject),
+                        rightBtns: new FrameworkElement?[] { FindName("BtnCopyLogs") as FrameworkElement, FindName("BtnTestAzure") as FrameworkElement }
+                    );
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void LogMeasureForSection(string tag, RowDefinition? row, FrameworkElement? header,
+                                      FrameworkElement? headerGrid,
+                                      FrameworkElement? leftToggle,
+                                      FrameworkElement? title,
+                                      FrameworkElement? subtitle,
+                                      FrameworkElement?[]? rightBtns)
+    {
+        try
+        {
+            double rowH = row?.ActualHeight ?? double.NaN;
+            double headerH = header?.ActualHeight ?? double.NaN;
+
+            AppendLog($"[MEASURE] {tag}: rowH={rowH:0.0} headerH={headerH:0.0}");
+
+            if (headerGrid != null)
+            {
+                var origin = GetTopLeft(headerGrid);
+                AppendLog($"[MEASURE] {tag} header@ ({origin.X:0.0},{origin.Y:0.0})");
+            }
+
+            if (leftToggle != null)
+            {
+                var p = GetTopLeft(leftToggle);
+                AppendLog($"[MEASURE] {tag} leftToggle@ ({p.X:0.0},{p.Y:0.0})");
+            }
+            if (title != null)
+            {
+                var p = GetTopLeft(title);
+                AppendLog($"[MEASURE] {tag} title@ ({p.X:0.0},{p.Y:0.0})");
+            }
+            if (subtitle != null)
+            {
+                var p = GetTopLeft(subtitle);
+                AppendLog($"[MEASURE] {tag} subtitle@ ({p.X:0.0},{p.Y:0.0})");
+            }
+            if (rightBtns != null)
+            {
+                for (int i = 0; i < rightBtns.Length; i++)
+                {
+                    var rb = rightBtns[i];
+                    if (rb == null) continue;
+                    var p = GetTopLeft(rb);
+                    AppendLog($"[MEASURE] {tag} rightBtn[{i}]@ ({p.X:0.0},{p.Y:0.0})");
+                }
+            }
+            AppendLog($"[MEASURE] ----");
+        }
+        catch { }
+    }
+
+    private Point GetTopLeft(FrameworkElement el)
+    {
+        try
+        {
+            var t = el.TransformToAncestor(this);
+            var p = t.Transform(new Point(0, 0));
+            return p;
+        }
+        catch { return new Point(double.NaN, double.NaN); }
+    }
+
+    private static T? FindChild<T>(DependencyObject? parent) where T : DependencyObject
+    {
+        if (parent == null) return null;
+        int count = VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            var ch = VisualTreeHelper.GetChild(parent, i);
+            if (ch is T tt) return tt;
+            var found = FindChild<T>(ch);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static TextBlock? FindBoldText(DependencyObject? parent)
+    {
+        if (parent == null) return null;
+        int count = VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            var ch = VisualTreeHelper.GetChild(parent, i);
+            if (ch is TextBlock tb && tb.FontWeight == FontWeights.Bold) return tb;
+            var found = FindBoldText(ch);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static TextBlock? FindNonBoldText(DependencyObject? parent)
+    {
+        if (parent == null) return null;
+        int count = VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            var ch = VisualTreeHelper.GetChild(parent, i);
+            if (ch is TextBlock tb && tb.FontWeight != FontWeights.Bold) return tb;
+            var found = FindNonBoldText(ch);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private void AdjustWindowHeightForSections()
+    {
+        try
+        {
+            bool dbgVisible = true;
+            try { dbgVisible = (FindName("DebugToggle") as CheckBox)?.IsChecked == true; } catch { }
+            bool qExp = (FindName("QnASection") as Expander)?.IsExpanded ?? true;
+            bool lExp = (FindName("LiveSection") as Expander)?.IsExpanded ?? true;
+            bool dExp = dbgVisible ? ((FindName("DebugSection") as Expander)?.IsExpanded ?? true) : false;
+
+            bool anyCollapsed = (!qExp) || (!lExp) || (dbgVisible && !dExp);
+
+            // Available vertical size (DIPs)
+            double maxH = SystemParameters.WorkArea.Height;
+
+            if (anyCollapsed)
+            {
+                // Let WPF compute compact height, then lock it
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        var prev = this.SizeToContent;
+                        this.SizeToContent = SizeToContent.Height;
+                        this.UpdateLayout();
+                        double h = Math.Min(this.ActualHeight, maxH);
+                        this.SizeToContent = SizeToContent.Manual;
+                        this.Height = h;
+                        this.Top = 0; // keep pinned to top
+                    }
+                    catch { }
+                }), DispatcherPriority.Background);
+            }
+            else
+            {
+                // Restore full working height when all expanded
+                this.SizeToContent = SizeToContent.Manual;
+                this.Height = maxH;
+                this.Top = 0;
+            }
+        }
+        catch { }
     }
 
     private void Window_MouseDown(object sender, MouseButtonEventArgs e)
@@ -137,6 +412,61 @@ public partial class MainWindow : Window
             try { DragMove(); } catch { }
         }
     }
+
+    // Window nudge buttons: move horizontally by one third of the current screen's work area
+    private void NudgeLeft_Click(object sender, RoutedEventArgs e) => NudgeByThird(-1);
+    private void NudgeRight_Click(object sender, RoutedEventArgs e) => NudgeByThird(1);
+
+    private void NudgeByThird(int dir)
+    {
+        try
+        {
+            // Determine the monitor work area (device pixels)
+            var hwnd = new WindowInteropHelper(this).Handle;
+            var mon = MonitorFromWindow(hwnd, 2 /*MONITOR_DEFAULTTONEAREST*/);
+            MONITORINFO mi = new MONITORINFO();
+            mi.cbSize = Marshal.SizeOf<MONITORINFO>();
+            if (!GetMonitorInfo(mon, ref mi)) return;
+
+            // Convert to DIPs using current DPI
+            var src = PresentationSource.FromVisual(this);
+            double dpiX = src?.CompositionTarget?.TransformToDevice.M11 ?? 1.0;
+            double workLeft = mi.rcWork.left / dpiX;
+            double workWidth = (mi.rcWork.right - mi.rcWork.left) / dpiX;
+
+            double third = workWidth / 3.0;
+
+            // Snap to discrete thirds and move one step
+            double idxNow = Math.Round((this.Left - workLeft) / third);
+            int idx = (int)idxNow + dir;
+            if (idx < 0) idx = 0; if (idx > 2) idx = 2;
+            double targetLeft = workLeft + idx * third;
+
+            // Keep fully on screen if overlay wider than a third
+            double maxLeft = workLeft + Math.Max(0, workWidth - this.Width);
+            targetLeft = Math.Max(workLeft, Math.Min(targetLeft, maxLeft));
+            this.Left = targetLeft;
+        }
+        catch { }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int left, top, right, bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -378,6 +708,196 @@ public partial class MainWindow : Window
                     if (it is ComboBoxItem cbi && cbi.Tag is int tag && tag == prev)
                         micCb.SelectedItem = cbi;
             }
+        }
+        catch { }
+        try { AdjustSectionHeightsByWindow(); } catch { }
+    }
+
+    private void AdjustSectionHeightsByWindow()
+    {
+        try
+        {
+            if (FindName("RowQnA") is not RowDefinition rowQ) return;
+            if (FindName("RowLive") is not RowDefinition rowL) return;
+            if (FindName("RowDebug") is not RowDefinition rowD) return;
+
+            // Compute available height from Q&A header top to bottom of WorkArea (screen)
+            double available = GetAvailableFromQnATopToScreenBottom();
+            if (available <= 0)
+            {
+                // Try again after layout stabilizes
+                Dispatcher.BeginInvoke(new Action(AdjustSectionHeightsByWindow), DispatcherPriority.Background);
+                return;
+            }
+
+            bool dbgVisible = true;
+            try { dbgVisible = (FindName("DebugToggle") as CheckBox)?.IsChecked == true; } catch { }
+
+            var expQ = (FindName("QnASection") as Expander)?.IsExpanded ?? true;
+            var expL = (FindName("LiveSection") as Expander)?.IsExpanded ?? true;
+            var expD = dbgVisible ? ((FindName("DebugSection") as Expander)?.IsExpanded ?? true) : false;
+
+            // Header fallback heights to avoid collapsing to 0 before layout settles
+            double hQHeader = (FindName("QnAHeader") as FrameworkElement)?.ActualHeight ?? 0.0;
+            double hLHeader = (FindName("LiveHeader") as FrameworkElement)?.ActualHeight ?? 0.0;
+            double hDHeader = (FindName("DebugHeader") as FrameworkElement)?.ActualHeight ?? 0.0;
+            if (hQHeader < 56) hQHeader = 56; // minimum compact header height
+            if (hLHeader < 56) hLHeader = 56;
+            if (dbgVisible && hDHeader < 56) hDHeader = 56;
+
+            // Base targets (over whole available)
+            double baseQ = available * 0.60;
+            double baseL = available * (dbgVisible ? 0.20 : 0.40);
+            double baseD = dbgVisible ? (available * 0.20) : 0.0;
+
+            // Collapsed heights: use a uniform target so all cards have same compact size
+            const double CollapsedRow = 70.0;
+            double collapsedSum = (expQ ? 0 : CollapsedRow) + (expL ? 0 : CollapsedRow) + ((dbgVisible && !expD) ? CollapsedRow : 0);
+            double restAvail = Math.Max(0, available - collapsedSum);
+
+            // Expanded base sum
+            double sumBaseExp = (expQ ? baseQ : 0) + (expL ? baseL : 0) + (expD ? baseD : 0);
+            double scale = sumBaseExp > 0 ? (restAvail / sumBaseExp) : 0;
+
+            double hQ = expQ ? Math.Max(180, baseQ * scale) : CollapsedRow;
+            double hL = expL ? Math.Max(100, baseL * scale) : CollapsedRow;
+            double hD = expD ? Math.Max(100, baseD * scale) : (dbgVisible ? CollapsedRow : 0.0); // if visible but collapsed, fixed compact height
+
+            // Final clamp if rounding overflow
+            double total = hQ + hL + hD + (expD ? 0 : (dbgVisible ? 0 : 0));
+            if (total > available && (expQ || expL || expD))
+            {
+                double over = total - available;
+                double sumAdjustables = (expQ ? hQ - 180 : 0) + (expL ? hL - 100 : 0) + (expD ? hD - 100 : 0);
+                if (sumAdjustables > 0)
+                {
+                    double f = Math.Max(0, 1.0 - (over / sumAdjustables));
+                    if (expQ) hQ = 180 + (hQ - 180) * f;
+                    if (expL) hL = 100 + (hL - 100) * f;
+                    if (expD) hD = 100 + (hD - 100) * f;
+                }
+            }
+
+            rowQ.Height = new GridLength(hQ, GridUnitType.Pixel);
+            rowL.Height = new GridLength(hL, GridUnitType.Pixel);
+            rowD.Height = new GridLength(hD, GridUnitType.Pixel);
+
+            // Center headers and unify header box when collapsed
+            try
+            {
+                // Account for Border padding=10 around the Expander when setting compact min heights
+                const double HeaderCompactMin = CollapsedRow - 20.0; // 70 - (10 top + 10 bottom)
+
+                if (FindName("QnAHeader") is FrameworkElement hqEl)
+                {
+                    hqEl.MinHeight = HeaderCompactMin; // fijo en ambos estados para evitar salto visual
+                    hqEl.Margin = new Thickness(hqEl.Margin.Left, 0, hqEl.Margin.Right, 6);
+                }
+                if (FindName("LiveHeader") is FrameworkElement hlEl)
+                {
+                    hlEl.MinHeight = HeaderCompactMin;
+                    hlEl.Margin = new Thickness(hlEl.Margin.Left, 0, hlEl.Margin.Right, 6);
+                }
+                if (dbgVisible && FindName("DebugHeader") is FrameworkElement hdEl)
+                {
+                    hdEl.MinHeight = HeaderCompactMin;
+                    hdEl.Margin = new Thickness(hdEl.Margin.Left, 0, hdEl.Margin.Right, 6);
+                }
+            }
+            catch { }
+
+            // Fix viewport heights to enable scrolling (bars ocultas)
+            try
+            {
+                if (FindName("QnAHeader") is FrameworkElement hq && FindName("QnAScroll") is ScrollViewer svq)
+                {
+                    var contentH = Math.Max(100, hQ - hq.ActualHeight - 16);
+                    if (!double.IsNaN(contentH) && contentH > 0) svq.Height = contentH;
+                }
+                if (FindName("LiveHeader") is FrameworkElement hl && FindName("LiveScroll") is ScrollViewer svl)
+                {
+                    var contentH = Math.Max(80, hL - hl.ActualHeight - 16);
+                    if (!double.IsNaN(contentH) && contentH > 0) svl.Height = contentH;
+                }
+                if (FindName("DebugHeader") is FrameworkElement hd && FindName("DebugScroll") is ScrollViewer svd)
+                {
+                    var contentH = Math.Max(80, hD - hd.ActualHeight - 16);
+                    if (!double.IsNaN(contentH) && contentH > 0) svd.Height = contentH;
+                }
+            }
+            catch { }
+
+            try { AdjustQnAPanelHeight(); } catch { }
+        }
+        catch { }
+    }
+
+    private double GetAvailableFromQnATopToScreenBottom()
+    {
+        try
+        {
+            if (FindName("QnAHeader") is not FrameworkElement q) return 0;
+            var ptScreen = q.PointToScreen(new System.Windows.Point(0, 0)); // device pixels
+            var src = System.Windows.PresentationSource.FromVisual(this);
+            double dpiY = src?.CompositionTarget?.TransformToDevice.M22 ?? 1.0;
+            double qnaTopDip = ptScreen.Y / dpiY; // DIPs
+            // WorkArea in DIPs
+            return SystemParameters.WorkArea.Bottom - qnaTopDip;
+        }
+        catch { return 0; }
+    }
+
+    private void AttachWheelScroll(ScrollViewer? sv)
+    {
+        if (sv == null) return;
+        // Smooth pixel scrolling regardless of focus
+        sv.PreviewMouseWheel += (s, e) =>
+        {
+            try
+            {
+                double step = Math.Sign(e.Delta) * 120; // normalize to 120-tick units
+                double before = sv.VerticalOffset;
+                sv.ScrollToVerticalOffset(Math.Max(0, Math.Min(before - step, sv.ScrollableHeight)));
+                LogScrollMetrics($"wheel:{(sv.Name ?? "scroll")}", sv, e.Delta, before, sv.VerticalOffset);
+                e.Handled = true;
+            }
+            catch { }
+        };
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? d) where T : DependencyObject
+    {
+        while (d != null && d is not T)
+            d = System.Windows.Media.VisualTreeHelper.GetParent(d);
+        return d as T;
+    }
+
+    private void Global_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        try
+        {
+            var origin = e.OriginalSource as DependencyObject;
+            var sv = FindAncestor<ScrollViewer>(origin);
+            if (sv == null) return;
+            double step = Math.Sign(e.Delta) * 120;
+            double before = sv.VerticalOffset;
+            sv.ScrollToVerticalOffset(Math.Max(0, Math.Min(before - step, sv.ScrollableHeight)));
+            LogScrollMetrics($"global:{(sv.Name ?? "scroll")}", sv, e.Delta, before, sv.VerticalOffset);
+            e.Handled = true;
+        }
+        catch { }
+    }
+
+    // Debug helpers: log extent/viewport/offsets to Debug panel
+    private void LogScrollMetrics(string tag, ScrollViewer? sv, int? delta = null, double? before = null, double? after = null)
+    {
+        try
+        {
+            if (sv == null) { AppendLog($"scroll[{tag}]: <null>"); return; }
+            string name = string.IsNullOrWhiteSpace(sv.Name) ? "(unnamed)" : sv.Name;
+            string d = delta.HasValue ? $" d={delta.Value}" : string.Empty;
+            string ba = (before.HasValue || after.HasValue) ? $" off={before?.ToString("0.0") ?? "-"}->{after?.ToString("0.0") ?? sv.VerticalOffset.ToString("0.0")}" : $" off={sv.VerticalOffset:0.0}";
+            AppendLog($"scroll[{tag}] {name}: ext={sv.ExtentHeight:0.0} view={sv.ViewportHeight:0.0} scr={sv.ScrollableHeight:0.0}{d}{ba}");
         }
         catch { }
     }
@@ -854,6 +1374,18 @@ public partial class MainWindow : Window
         {
             var q = string.IsNullOrWhiteSpace(_lastQuestion) ? (FindName("LastQuestionText") as TextBlock)?.Text ?? string.Empty : _lastQuestion;
             if (!string.IsNullOrWhiteSpace(q)) Clipboard.SetText(q);
+        }
+        catch { }
+    }
+
+    private void CopyLive_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (FindName("LiveTranscriptBox") is TextBlock tb && !string.IsNullOrWhiteSpace(tb.Text))
+            {
+                Clipboard.SetText(tb.Text);
+            }
         }
         catch { }
     }
